@@ -1,0 +1,48 @@
+fastapi>=0.110.0
+uvicorn[standard]>=0.29.0
+torch>=2.2.0
+huggingface_hub>=0.22.0
+numpy>=1.26.0
+pydantic>=2.6.0
+
+# tribev2 and its companion packages — install without deps to avoid re-downloading torch:
+# pip install --no-deps git+https://github.com/facebookresearch/tribev2.git neuralset==0.0.2 neuraltrain==0.0.2
+
+# tribev2 runtime dependencies (discovered iteratively on Windows):
+pandas>=2.0.0
+requests>=2.31.0
+torchaudio>=2.2.0
+torchvision>=0.17.0
+einops>=0.7.0
+av>=12.0.0
+moviepy>=1.0.3
+exca>=0.1.0
+nibabel>=5.0.0
+scikit-learn>=1.3.0
+ujson>=5.8.0
+colorcet>=3.0.0
+lightning>=2.0.0
+torchmetrics>=1.0.0
+nilearn>=0.10.0
+mne>=1.6.0
+pyvista>=0.43.0
+scikit-image>=0.21.0
+seaborn>=0.13.0
+tqdm>=4.66.0
+matplotlib>=3.8.0
+x-transformers>=1.0.0
+gtts>=2.5.0
+langdetect>=1.0.9
+pydub>=0.25.0
+soundfile>=0.12.0
+imageio[ffmpeg]>=2.34.0
+
+# ffmpeg binary: copy the imageio_ffmpeg bundled binary as ffmpeg.exe into this directory.
+# python -c "import imageio_ffmpeg; print(imageio_ffmpeg.get_ffmpeg_exe())"
+# Copy that path → tribe-inference/ffmpeg.exe
+
+# Full text inference (tribe-local mode) additionally requires whisperx via uvx:
+#   pip install uv
+#   uvx whisperx  (downloads on first run, requires CUDA GPU)
+# On CPU-only machines the server loads TRIBE weights (status=ready) but text
+# predictions fall back to deterministic stub activations.

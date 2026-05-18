@@ -1,0 +1,98 @@
+# CognArc GitLab CI Component
+# Include this component in your .gitlab-ci.yml to enable cognitive threshold checks on MRs.
+#
+# Usage:
+#   include:
+#     - component: gitlab.com/cognarc/cognitive-gate@1.0.0
+#       inputs:
+#         cognarc_api_url: $COGNARC_API_URL
+#         cognarc_workspace_id: $COGNARC_WORKSPACE_ID
+#         stage: test
+
+spec:
+  inputs:
+    cognarc_api_url:
+      description: 'CognArc scoring API URL'
+    cognarc_workspace_id:
+      description: 'CognArc workspace ID'
+    cognarc_api_key:
+      description: 'CognArc API key (use CI/CD variable)'
+      default: '$COGNARC_API_KEY'
+    config_path:
+      description: 'Path to .cognarc.yml'
+      default: '.cognarc.yml'
+    environment:
+      description: 'Deployment environment (dev/staging/prod)'
+      default: ''
+    stage:
+      description: 'CI stage to run the gate'
+      default: 'test'
+    allow_failure:
+      description: 'Whether to allow pipeline to continue on breach (warn mode)'
+      default: 'false'
+
+---
+
+cognarc-cognitive-gate:
+  stage: $[[ inputs.stage ]]
+  image: node:20-alpine
+  allow_failure: $[[ inputs.allow_failure ]]
+
+  variables:
+    COGNARC_API_URL: $[[ inputs.cognarc_api_url ]]
+    COGNARC_WORKSPACE_ID: $[[ inputs.cognarc_workspace_id ]]
+    COGNARC_API_KEY: $[[ inputs.cognarc_api_key ]]
+    COGNARC_CONFIG_PATH: $[[ inputs.config_path ]]
+    COGNARC_ENVIRONMENT: $[[ inputs.environment ]]
+
+  rules:
+    - if: '$CI_PIPELINE_SOURCE == "merge_request_event"'
+
+  before_script:
+    - apk add --no-cache git
+    - npm install -g @cognarc/gate-cli@latest
+
+  script:
+    - |
+      # Collect changed files in MR
+      CHANGED=$(git diff --name-only origin/${CI_MERGE_REQUEST_TARGET_BRANCH_NAME}...HEAD | tr '\n' ',' | sed 's/,$//')
+
+      # Check for override in MR description
+      MR_BODY=$(curl -sf \
+        --header "PRIVATE-TOKEN: ${GITLAB_TOKEN}" \
+        "${CI_API_V4_URL}/projects/${CI_PROJECT_ID}/merge_requests/${CI_MERGE_REQUEST_IID}" \
+        | node -e "process.stdin.resume(); let d=''; process.stdin.on('data',c=>d+=c); process.stdin.on('end',()=>{ try{ console.log(JSON.parse(d).description||'') }catch{} })" \
+        || echo "")
+
+      cognarc-gate evaluate \
+        --api-url "$COGNARC_API_URL" \
+        --workspace-id "$COGNARC_WORKSPACE_ID" \
+        --api-key "$COGNARC_API_KEY" \
+        --config "$COGNARC_CONFIG_PATH" \
+        --environment "$COGNARC_ENVIRONMENT" \
+        --changed-files "$CHANGED" \
+        --override-text "$MR_BODY" \
+        --platform gitlab \
+        --mr-id "$CI_MERGE_REQUEST_IID" \
+        --commit-sha "$CI_COMMIT_SHA"
+
+  after_script:
+    - |
+      # Post MR note with results
+      if [ -f .cognarc-report.md ]; then
+        REPORT=$(cat .cognarc-report.md)
+        curl -sf --request POST \
+          --header "PRIVATE-TOKEN: ${GITLAB_TOKEN}" \
+          --header "Content-Type: application/json" \
+          --data "{\"body\": $(echo "$REPORT" | node -e "let d='';process.stdin.on('data',c=>d+=c);process.stdin.on('end',()=>console.log(JSON.stringify(d)))")}" \
+          "${CI_API_V4_URL}/projects/${CI_PROJECT_ID}/merge_requests/${CI_MERGE_REQUEST_IID}/notes" \
+          || echo "[cognarc] MR note post failed"
+      fi
+
+  artifacts:
+    when: always
+    paths:
+      - .cognarc-report.md
+      - .cognarc-baselines/
+    reports:
+      dotenv: cognarc.env

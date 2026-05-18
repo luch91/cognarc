@@ -1,0 +1,111 @@
+{
+  "info": {
+    "name": "CognArc Eval Integration API",
+    "description": "Cognitive Scorer API — Braintrust, Langfuse, W&B, and Arize integration",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json",
+    "_postman_id": "cognarc-eval-integration-v1"
+  },
+  "variable": [
+    { "key": "base_url", "value": "http://localhost:3002", "type": "string" },
+    { "key": "api_key", "value": "cog_your_api_key_here", "type": "string" },
+    { "key": "workspace_id", "value": "ws-1", "type": "string" }
+  ],
+  "auth": {
+    "type": "bearer",
+    "bearer": [{ "key": "token", "value": "{{api_key}}", "type": "string" }]
+  },
+  "item": [
+    {
+      "name": "Scoring",
+      "item": [
+        {
+          "name": "Score output (simple)",
+          "request": {
+            "method": "POST",
+            "url": "{{base_url}}/score",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"output\": \"Here is how to reset your password: click Settings, then Security, then Reset.\",\n  \"workspace_id\": \"{{workspace_id}}\"\n}"
+            }
+          }
+        },
+        {
+          "name": "Score output (with input)",
+          "request": {
+            "method": "POST",
+            "url": "{{base_url}}/score",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"output\": \"ACT NOW! Limited time offer — experts unanimously agree this is your last chance.\",\n  \"input\": \"Write a compelling call-to-action for our newsletter.\",\n  \"workspace_id\": \"{{workspace_id}}\"\n}"
+            }
+          }
+        },
+        {
+          "name": "Health check",
+          "request": {
+            "method": "GET",
+            "url": "{{base_url}}/health",
+            "auth": { "type": "noauth" }
+          }
+        }
+      ]
+    },
+    {
+      "name": "Regression Gate",
+      "item": [
+        {
+          "name": "Check regression (first call — sets baseline)",
+          "request": {
+            "method": "POST",
+            "url": "{{base_url}}/regression/check",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"prompt_id\": \"checkout-confirmation-v2\",\n  \"output\": \"Your order has been confirmed. You'll receive a confirmation email shortly.\",\n  \"workspace_id\": \"{{workspace_id}}\"\n}"
+            }
+          }
+        },
+        {
+          "name": "Check regression (regressed output)",
+          "request": {
+            "method": "POST",
+            "url": "{{base_url}}/regression/check",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"prompt_id\": \"checkout-confirmation-v2\",\n  \"output\": \"URGENT: Your purchase transaction has been successfully processed and initiated within our proprietary fulfillment ecosystem. Rest assured that our synergistic logistics paradigm will endeavor to optimize delivery velocity. Please monitor your communication channels for subsequent correspondence.\",\n  \"workspace_id\": \"{{workspace_id}}\"\n}"
+            }
+          }
+        },
+        {
+          "name": "Set baseline manually",
+          "request": {
+            "method": "POST",
+            "url": "{{base_url}}/regression/baseline",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"prompt_id\": \"onboarding-welcome\",\n  \"cognitive_load\": 35,\n  \"comprehension_confidence\": 82\n}"
+            }
+          }
+        },
+        {
+          "name": "Get baseline",
+          "request": {
+            "method": "GET",
+            "url": "{{base_url}}/regression/baseline/onboarding-welcome"
+          }
+        },
+        {
+          "name": "Delete baseline",
+          "request": {
+            "method": "DELETE",
+            "url": "{{base_url}}/regression/baseline/onboarding-welcome"
+          }
+        }
+      ]
+    }
+  ]
+}

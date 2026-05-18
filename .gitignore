@@ -1,0 +1,21 @@
+node_modules
+dist
+coverage
+.next
+*.env.local
+.turbo
+*.tsbuildinfo
+cog_env
+__pycache__
+*.pyc
+.pytest_cache
+
+# Large model files and inference cache — do not commit
+*.ckpt
+*.pkl
+*.pt
+*.bin
+*.h5
+*.safetensors
+services/cognitive-scoring/tribe-inference/hf_model/
+services/cognitive-scoring/tribe-inference/cache/

@@ -1,0 +1,317 @@
+openapi: 3.1.0
+info:
+  title: CognArc Cognitive Scorer API
+  version: 0.1.0
+  description: |
+    Score AI-generated outputs for cognitive load, comprehension confidence,
+    emotional valence, trust coherence, and manipulation risk.
+    Integrates as a custom scorer with Braintrust, Langfuse, W&B Weave, and Arize Phoenix.
+  contact:
+    name: CognArc
+    url: https://cognarc.ai
+  license:
+    name: MIT
+
+servers:
+  - url: http://localhost:3002
+    description: Local development
+  - url: https://eval.cognarc.ai
+    description: Production
+
+security:
+  - bearerAuth: []
+
+paths:
+  /score:
+    post:
+      operationId: scoreOutput
+      summary: Score an LLM output for cognitive properties
+      tags: [Scoring]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/EvalScoreRequest'
+            examples:
+              simple:
+                summary: Simple text output
+                value:
+                  output: "Here is how to reset your password: click Settings, then Security, then Reset."
+                  workspace_id: "ws-1"
+              with_input:
+                summary: Output with prompt input
+                value:
+                  output: "ACT NOW! Limited time offer — experts unanimously agree this is your last chance."
+                  input: "Write a compelling call-to-action for our newsletter."
+                  workspace_id: "ws-1"
+      responses:
+        '200':
+          description: Cognitive scores for the provided output
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/EvalScoreResponse'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '500':
+          $ref: '#/components/responses/InternalError'
+
+  /regression/check:
+    post:
+      operationId: checkRegression
+      summary: Check cognitive regression vs baseline
+      description: |
+        Scores the output and compares against the stored baseline for the given prompt_id.
+        Records a new baseline on first call. Returns 422 if regression is detected.
+
+        **Regression thresholds:**
+        - Cognitive Load: +10pts vs baseline
+        - Comprehension Confidence: −15pts vs baseline
+      tags: [Regression Gate]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              allOf:
+                - $ref: '#/components/schemas/EvalScoreRequest'
+                - type: object
+                  required: [prompt_id]
+                  properties:
+                    prompt_id:
+                      type: string
+                      description: Stable identifier for this prompt template
+                      example: "checkout-confirmation-v2"
+      responses:
+        '200':
+          description: No regression detected
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/RegressionResult'
+        '422':
+          description: Regression detected — CI gate should fail
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/RegressionResult'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+
+  /regression/baseline:
+    post:
+      operationId: setBaseline
+      summary: Manually set a regression baseline
+      tags: [Regression Gate]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [prompt_id, cognitive_load, comprehension_confidence]
+              properties:
+                prompt_id:
+                  type: string
+                cognitive_load:
+                  type: integer
+                  minimum: 0
+                  maximum: 100
+                comprehension_confidence:
+                  type: integer
+                  minimum: 0
+                  maximum: 100
+      responses:
+        '201':
+          description: Baseline created or updated
+        '400':
+          $ref: '#/components/responses/BadRequest'
+
+  /regression/baseline/{promptId}:
+    get:
+      operationId: getBaseline
+      summary: Get the current baseline for a prompt
+      tags: [Regression Gate]
+      parameters:
+        - name: promptId
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Baseline record
+        '404':
+          description: No baseline found for this promptId
+    delete:
+      operationId: deleteBaseline
+      summary: Delete a baseline
+      tags: [Regression Gate]
+      parameters:
+        - name: promptId
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '204':
+          description: Deleted
+        '404':
+          description: Not found
+
+  /health:
+    get:
+      operationId: health
+      summary: Service health check
+      tags: [System]
+      security: []
+      responses:
+        '200':
+          description: Service is healthy
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  status:
+                    type: string
+                    example: ok
+                  service:
+                    type: string
+                    example: eval-integration
+
+components:
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: CognArc API key (cog_...)
+
+  schemas:
+    EvalScoreRequest:
+      type: object
+      required: [output, workspace_id]
+      properties:
+        output:
+          type: string
+          description: The LLM-generated text to evaluate
+          minLength: 1
+        input:
+          type: string
+          description: The prompt that produced this output (optional, improves accuracy)
+        context:
+          type: object
+          description: Arbitrary metadata for context
+        workspace_id:
+          type: string
+          description: Workspace identifier for attribution
+
+    EvalScoreResponse:
+      type: object
+      required: [cognitive_load, comprehension_confidence, emotional_valence, trust_coherence, manipulation_risk, cognitive_risk, explanation, score, reasoning, metadata]
+      properties:
+        cognitive_load:
+          type: integer
+          minimum: 0
+          maximum: 100
+          description: Mental effort required to process this output (higher = harder)
+        comprehension_confidence:
+          type: integer
+          minimum: 0
+          maximum: 100
+          description: Probability a typical user understands correctly (higher = clearer)
+        emotional_valence:
+          type: integer
+          minimum: 0
+          maximum: 100
+          description: Emotional tone (higher = more positive)
+        trust_coherence:
+          type: integer
+          minimum: 0
+          maximum: 100
+          description: Internal consistency and trustworthiness (higher = more trustworthy)
+        manipulation_risk:
+          type: integer
+          minimum: 0
+          maximum: 100
+          description: Likelihood of manipulation tactics (higher = more manipulative)
+        cognitive_risk:
+          type: string
+          enum: [LOW, MEDIUM, HIGH]
+          description: Overall cognitive risk classification
+        explanation:
+          type: string
+          description: Human-readable explanation of the scores
+        score:
+          type: number
+          minimum: 0
+          maximum: 1
+          description: Single composite score 0–1 (higher = better) for platforms requiring a single value
+        reasoning:
+          type: string
+          description: Alias for explanation — provided for Braintrust/Langfuse compatibility
+        metadata:
+          type: object
+          properties:
+            model_version:
+              type: string
+            latency_ms:
+              type: integer
+            brain_regions:
+              type: array
+              items:
+                type: string
+
+    RegressionResult:
+      type: object
+      required: [prompt_id, regressed, load_delta, comprehension_delta, current, baseline]
+      properties:
+        prompt_id:
+          type: string
+        regressed:
+          type: boolean
+        load_delta:
+          type: integer
+          description: Current load minus baseline load (positive = worse)
+        comprehension_delta:
+          type: integer
+          description: Current comprehension minus baseline (negative = worse)
+        reason:
+          type: string
+          nullable: true
+          description: Human-readable reason for regression, or null if no regression
+        current:
+          type: object
+          properties:
+            cognitive_load:
+              type: integer
+            comprehension_confidence:
+              type: integer
+        baseline:
+          type: object
+          properties:
+            cognitive_load:
+              type: integer
+            comprehension_confidence:
+              type: integer
+
+  responses:
+    BadRequest:
+      description: Invalid request body
+      content:
+        application/json:
+          schema:
+            type: object
+            properties:
+              error:
+                type: object
+    InternalError:
+      description: Internal server error
+      content:
+        application/json:
+          schema:
+            type: object
+            properties:
+              error:
+                type: string

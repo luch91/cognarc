@@ -1,0 +1,159 @@
+version: "3.9"
+
+services:
+  # ── Infrastructure ────────────────────────────────────────────────────────
+  postgres:
+    image: postgres:16-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: cognarc
+      POSTGRES_PASSWORD: password
+      POSTGRES_DB: cognarc
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U cognarc"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  redis:
+    image: redis:7-alpine
+    restart: unless-stopped
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis_data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+
+  # ── CognArc Services ──────────────────────────────────────────────────────
+  cognitive-scoring:
+    build:
+      context: .
+      dockerfile: services/cognitive-scoring/Dockerfile
+    ports:
+      - "3001:3001"
+    environment:
+      NODE_ENV: production
+      PORT: 3001
+      COGNARC_SCORING_ENGINE: ${COGNARC_SCORING_ENGINE:-mock}
+      GCP_TRIBE_ENDPOINT: ${GCP_TRIBE_ENDPOINT:-}
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "wget", "-qO-", "http://localhost:3001/health"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  behavioral-sdk:
+    build:
+      context: .
+      dockerfile: services/behavioral-sdk/Dockerfile
+    ports:
+      - "3002:3002"
+    environment:
+      NODE_ENV: production
+      PORT: 3002
+      COGNITIVE_SCORING_URL: http://cognitive-scoring:3001
+    depends_on:
+      cognitive-scoring:
+        condition: service_healthy
+    restart: unless-stopped
+
+  analytics-connectors:
+    build:
+      context: .
+      dockerfile: services/analytics-connectors/Dockerfile
+    ports:
+      - "3003:3003"
+    environment:
+      NODE_ENV: production
+      PORT: 3003
+      COGNITIVE_SCORING_URL: http://cognitive-scoring:3001
+      SEGMENT_WEBHOOK_SECRET: ${SEGMENT_WEBHOOK_SECRET:-}
+      AMPLITUDE_API_KEY: ${AMPLITUDE_API_KEY:-}
+    depends_on:
+      cognitive-scoring:
+        condition: service_healthy
+    restart: unless-stopped
+
+  guardrail-engine:
+    build:
+      context: .
+      dockerfile: services/guardrail-engine/Dockerfile
+    ports:
+      - "3004:3004"
+    environment:
+      NODE_ENV: production
+      PORT: 3004
+      COGNITIVE_SCORING_URL: http://cognitive-scoring:3001
+      TRUST_GRADIENT_URL: http://trust-gradient:3005
+      COGNARC_POLICY_PATH: /app/config/.cognarc.yml
+      SLACK_WEBHOOK_URL: ${SLACK_WEBHOOK_URL:-}
+    depends_on:
+      cognitive-scoring:
+        condition: service_healthy
+      trust-gradient:
+        condition: service_healthy
+    volumes:
+      - ./config:/app/config:ro
+    restart: unless-stopped
+
+  trust-gradient:
+    build:
+      context: .
+      dockerfile: services/trust-gradient/Dockerfile
+    ports:
+      - "3005:3005"
+    environment:
+      NODE_ENV: production
+      PORT: 3005
+      COGNARC_DB_URL: ${COGNARC_DB_URL:-postgresql://cognarc:password@postgres:5432/cognarc}
+      COGNARC_REDIS_URL: ${COGNARC_REDIS_URL:-redis://redis:6379}
+      COGNARC_AUDIT_WORM: ${COGNARC_AUDIT_WORM:-true}
+      COGNARC_POLICY_PATH: /app/config/.cognarc.yml
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    volumes:
+      - ./config:/app/config:ro
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "wget", "-qO-", "http://localhost:3005/health"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  api-gateway:
+    build:
+      context: .
+      dockerfile: services/api-gateway/Dockerfile
+    ports:
+      - "3000:3000"
+    environment:
+      NODE_ENV: production
+      PORT: 3000
+      COGNITIVE_SCORING_URL: http://cognitive-scoring:3001
+      BEHAVIORAL_SDK_URL: http://behavioral-sdk:3002
+      ANALYTICS_CONNECTORS_URL: http://analytics-connectors:3003
+      GUARDRAIL_ENGINE_URL: http://guardrail-engine:3004
+      TRUST_GRADIENT_URL: http://trust-gradient:3005
+    depends_on:
+      - cognitive-scoring
+      - behavioral-sdk
+      - analytics-connectors
+      - guardrail-engine
+      - trust-gradient
+    restart: unless-stopped
+
+volumes:
+  postgres_data:
+  redis_data:

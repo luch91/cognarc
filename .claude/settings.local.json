@@ -1,0 +1,23 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(Get-ChildItem -Path \"C:\\\\Users\\\\user\\\\Desktop\\\\Cognarc\" -Directory)",
+      "Bash(Select-Object Name)",
+      "Bash(node -e \"console.log\\('ready'\\)\")",
+      "Bash(pnpm list *)",
+      "Bash(./node_modules/.bin/jest --config tests/integration/jest.config.ts --testPathPattern=\"behavioral-sdk\")",
+      "Bash(node_modules/.bin/jest.CMD --config tests/integration/jest.config.ts --testPathPattern=\"behavioral-sdk\")",
+      "Bash(node_modules/.bin/jest.CMD --config tests/integration/jest.config.ts)",
+      "Bash(node_modules/.bin/jest.CMD --config tests/integration/jest.config.ts --testPathPattern=\"trust-gradient\" --showConfig)",
+      "Bash(node_modules/.bin/jest.CMD --config tests/integration/jest.config.ts --testPathPattern=\"prompt-gate\")",
+      "Bash(mkdir -p \"c:/Users/user/Desktop/Cognarc/apps/landing/src/components\" \"c:/Users/user/Desktop/Cognarc/apps/landing/src/assets\" && echo \"created\")",
+      "Bash(node_modules/.bin/vite.CMD build *)",
+      "Bash(node_modules/.bin/vite.CMD)",
+      "Bash(git config *)",
+      "Bash(git remote *)"
+    ],
+    "additionalDirectories": [
+      "c:\\Users\\user\\Desktop\\Cognarc\\apps\\landing\\src"
+    ]
+  }
+}

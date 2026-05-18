@@ -1,0 +1,86 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "https://cognarc.ai/schema/cognarc.schema.json",
+  "title": "CognArc Policy Configuration",
+  "description": "Schema for .cognarc.yml policy-as-code files",
+  "type": "object",
+  "required": ["version", "thresholds"],
+  "properties": {
+    "version": {
+      "type": "string",
+      "enum": ["1.0"]
+    },
+    "thresholds": {
+      "type": "object",
+      "properties": {
+        "cognitive_load": {
+          "type": "object",
+          "properties": {
+            "max": { "type": "number", "minimum": 0, "maximum": 100 },
+            "environment": {
+              "type": "object",
+              "additionalProperties": { "type": "number", "minimum": 0, "maximum": 100 }
+            }
+          }
+        },
+        "manipulation_risk": {
+          "type": "object",
+          "properties": {
+            "max": { "type": "number", "minimum": 0, "maximum": 100 }
+          }
+        },
+        "comprehension_confidence": {
+          "type": "object",
+          "properties": {
+            "min": { "type": "number", "minimum": 0, "maximum": 100 }
+          }
+        },
+        "trust_coherence": {
+          "type": "object",
+          "properties": {
+            "min": { "type": "number", "minimum": 0, "maximum": 100 }
+          }
+        }
+      }
+    },
+    "paths": {
+      "type": "array",
+      "items": { "type": "string" }
+    },
+    "on_breach": {
+      "type": "object",
+      "properties": {
+        "action": { "type": "string", "enum": ["warn", "fail"] },
+        "alert": {
+          "type": "object",
+          "properties": {
+            "slack": { "type": "string" },
+            "email": { "type": "string", "format": "email" }
+          }
+        }
+      }
+    },
+    "environments": {
+      "type": "array",
+      "items": { "type": "string" }
+    },
+    "trust_gradient": {
+      "type": "object",
+      "properties": {
+        "zones": {
+          "type": "object",
+          "additionalProperties": {
+            "type": "string",
+            "enum": ["OBSERVE", "RECOMMEND", "ACT_AUTO", "ACT_GATED"]
+          }
+        }
+      }
+    },
+    "kill_switch": {
+      "type": "object",
+      "properties": {
+        "enabled": { "type": "boolean" }
+      }
+    }
+  }
+}

@@ -1,0 +1,33 @@
+// Example Jenkinsfile demonstrating cognarcEvaluate step
+// Load the step via Jenkins Shared Library or copy CognArcStep.groovy into vars/
+
+@Library('cognarc-shared-lib') _
+
+pipeline {
+    agent any
+
+    environment {
+        COGNARC_API_URL      = credentials('cognarc-api-url')
+        COGNARC_WORKSPACE_ID = credentials('cognarc-workspace-id')
+        COGNARC_API_KEY      = credentials('cognarc-api-key')
+    }
+
+    stages {
+        stage('Cognitive Gate') {
+            when { changeRequest() }
+            steps {
+                script {
+                    def result = cognarcEvaluate(
+                        apiUrl:       env.COGNARC_API_URL,
+                        workspaceId:  env.COGNARC_WORKSPACE_ID,
+                        apiKey:       env.COGNARC_API_KEY,
+                        paths:        ['prompts/**/*.txt', 'src/copy/**/*.json'],
+                        environment:  env.BRANCH_NAME == 'main' ? 'prod' : 'staging',
+                        failOnBreach: true
+                    )
+                    echo "Gate result: passed=${result.passed}"
+                }
+            }
+        }
+    }
+}

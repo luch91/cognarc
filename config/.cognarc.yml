@@ -1,0 +1,31 @@
+version: "1.0"
+
+thresholds:
+  cognitive_load:
+    max: 80
+    environment:
+      prod: 75
+      staging: 80
+  manipulation_risk:
+    max: 40
+  comprehension_confidence:
+    min: 50
+  trust_coherence:
+    min: 40
+
+paths:
+  - "prompts/**/*.txt"
+  - "prompts/**/*.prompt"
+  - "src/copy/**/*.json"
+  - "src/copy/**/*.md"
+
+on_breach:
+  action: "fail"
+  alert:
+    slack: "${SLACK_WEBHOOK_URL}"
+    email: "team@company.com"
+
+environments:
+  - dev
+  - staging
+  - prod

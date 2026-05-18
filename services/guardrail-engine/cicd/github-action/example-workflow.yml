@@ -1,0 +1,30 @@
+name: CognArc Cognitive Gate
+
+on:
+  pull_request:
+    paths:
+      - 'prompts/**'
+      - 'src/copy/**'
+      - '**/*.prompt'
+
+jobs:
+  cognitive-gate:
+    name: Cognitive Threshold Check
+    runs-on: ubuntu-latest
+    permissions:
+      pull-requests: write   # post PR comments
+      contents: read
+
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0     # needed for git diff against base branch
+
+      - name: CognArc Cognitive Gate
+        uses: cognarc/cognitive-gate-action@v1
+        with:
+          cognarc-api-url: ${{ secrets.COGNARC_API_URL }}
+          cognarc-workspace-id: ${{ secrets.COGNARC_WORKSPACE_ID }}
+          cognarc-api-key: ${{ secrets.COGNARC_API_KEY }}
+          environment: ${{ github.base_ref == 'main' && 'prod' || 'staging' }}
+          github-token: ${{ secrets.GITHUB_TOKEN }}

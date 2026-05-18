@@ -1,0 +1,46 @@
+name: 'CognArc Cognitive Gate'
+description: 'Evaluates changed files against cognitive thresholds. Fails PRs that breach configured limits. Human override supported with audit trail.'
+author: 'CognArc'
+
+branding:
+  icon: 'shield'
+  color: 'purple'
+
+inputs:
+  cognarc-api-url:
+    description: 'CognArc scoring API URL'
+    required: true
+  cognarc-workspace-id:
+    description: 'CognArc workspace ID'
+    required: true
+  cognarc-api-key:
+    description: 'CognArc API key'
+    required: true
+  config-path:
+    description: 'Path to .cognarc.yml (default: .cognarc.yml)'
+    required: false
+    default: '.cognarc.yml'
+  environment:
+    description: 'Deployment environment (dev/staging/prod) for environment-specific thresholds'
+    required: false
+    default: ''
+  fail-on-breach:
+    description: 'Whether to fail the check on threshold breach (default: true, respects on_breach.action in .cognarc.yml)'
+    required: false
+    default: 'true'
+  github-token:
+    description: 'GitHub token for posting PR comments (default: github.token)'
+    required: false
+    default: ${{ github.token }}
+
+outputs:
+  passed:
+    description: 'Whether all thresholds passed ("true" or "false")'
+  overridden:
+    description: 'Whether a human override was applied ("true" or "false")'
+  report:
+    description: 'Markdown score breakdown table'
+
+runs:
+  using: 'node20'
+  main: 'dist/github-action/index.js'

@@ -1,0 +1,43 @@
+{
+  "name": "cognarc",
+  "private": true,
+  "version": "0.1.0",
+  "description": "Agentic cognitive-behavioral AI evaluation and alignment platform",
+  "scripts": {
+    "build": "turbo run build",
+    "dev": "turbo run dev",
+    "test": "turbo run test",
+    "test:integration": "jest --config tests/integration/jest.config.ts",
+    "lint": "turbo run lint",
+    "format": "prettier --write \"**/*.{ts,tsx,json,md,yml}\"",
+    "typecheck": "turbo run typecheck"
+  },
+  "workspaces": [
+    "services/*",
+    "packages/*",
+    "apps/*"
+  ],
+  "devDependencies": {
+    "@types/express": "^4.17.25",
+    "@types/jest": "^29.5.14",
+    "@types/js-yaml": "^4.0.9",
+    "@types/supertest": "^7.2.0",
+    "@typescript-eslint/eslint-plugin": "^7.0.0",
+    "@typescript-eslint/parser": "^7.0.0",
+    "eslint": "^8.57.0",
+    "eslint-config-prettier": "^9.1.0",
+    "express": "^4.22.2",
+    "jest": "^29.7.0",
+    "js-yaml": "^4.1.1",
+    "prettier": "^3.2.5",
+    "supertest": "^7.2.2",
+    "ts-jest": "^29.4.9",
+    "turbo": "^2.0.0",
+    "typescript": "^5.4.0"
+  },
+  "engines": {
+    "node": ">=18.0.0",
+    "pnpm": ">=8.0.0"
+  },
+  "packageManager": "pnpm@10.18.3"
+}

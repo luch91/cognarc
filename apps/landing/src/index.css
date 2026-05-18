@@ -1,0 +1,109 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  * {
+    scroll-behavior: smooth;
+  }
+
+  html {
+    scroll-behavior: smooth;
+  }
+
+  body {
+    @apply font-sans antialiased;
+  }
+
+  ::selection {
+    @apply bg-teal-500/30 text-white;
+  }
+
+  ::-webkit-scrollbar {
+    width: 6px;
+  }
+
+  ::-webkit-scrollbar-track {
+    @apply bg-navy-900;
+  }
+
+  ::-webkit-scrollbar-thumb {
+    @apply bg-navy-600 rounded-full;
+  }
+
+  ::-webkit-scrollbar-thumb:hover {
+    @apply bg-teal-600;
+  }
+}
+
+@layer components {
+  .gradient-text {
+    @apply bg-gradient-to-r from-teal-400 to-teal-500 bg-clip-text text-transparent;
+  }
+
+  .section-label {
+    @apply text-teal-400 text-xs font-semibold uppercase tracking-widest;
+  }
+
+  .card-glass {
+    @apply bg-white/[0.04] border border-white/[0.08] rounded-2xl backdrop-blur-sm;
+  }
+
+  .btn-primary {
+    @apply bg-teal-500 hover:bg-teal-400 text-navy-900 font-semibold px-6 py-3 rounded-xl
+           transition-all duration-200 hover:shadow-lg hover:shadow-teal-500/25 active:scale-[0.98];
+  }
+
+  .btn-secondary {
+    @apply bg-white/[0.08] hover:bg-white/[0.12] text-white border border-white/[0.12]
+           font-medium px-6 py-3 rounded-xl transition-all duration-200 active:scale-[0.98];
+  }
+
+  .btn-ghost {
+    @apply text-slate-300 hover:text-white font-medium px-4 py-2 rounded-lg
+           transition-colors duration-150;
+  }
+}
+
+/* Intelligence loop animation */
+@keyframes nodeGlow {
+  0%, 100% { box-shadow: 0 0 8px rgba(20, 184, 166, 0.3); }
+  50% { box-shadow: 0 0 20px rgba(20, 184, 166, 0.8), 0 0 40px rgba(20, 184, 166, 0.3); }
+}
+
+@keyframes connectorPulse {
+  0% { stroke-dashoffset: 100; opacity: 0.3; }
+  50% { opacity: 1; }
+  100% { stroke-dashoffset: 0; opacity: 0.3; }
+}
+
+@keyframes scanLine {
+  0% { transform: translateY(-100%); opacity: 0; }
+  10% { opacity: 1; }
+  90% { opacity: 1; }
+  100% { transform: translateY(400%); opacity: 0; }
+}
+
+@keyframes floatUp {
+  0% { transform: translateY(8px); opacity: 0; }
+  100% { transform: translateY(0); opacity: 1; }
+}
+
+@keyframes shimmer {
+  0% { background-position: -200% center; }
+  100% { background-position: 200% center; }
+}
+
+.node-glow {
+  animation: nodeGlow 2.5s ease-in-out infinite;
+}
+
+.shimmer-line {
+  background: linear-gradient(90deg, transparent, rgba(20, 184, 166, 0.6), transparent);
+  background-size: 200% 100%;
+  animation: shimmer 2s linear infinite;
+}
+
+.float-up {
+  animation: floatUp 0.5s ease-out forwards;
+}

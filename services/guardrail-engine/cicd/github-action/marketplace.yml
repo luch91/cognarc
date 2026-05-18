@@ -1,0 +1,22 @@
+name: CognArc Cognitive Gate
+tagline: Automatically evaluate PRs for cognitive load, manipulation risk, and comprehension failure
+description: |
+  CognArc Cognitive Gate integrates cognitive behavioral analysis directly into your CI/CD pipeline.
+  Powered by TRIBE v2 (Meta AI Research), it scores changed files against human-configured thresholds
+  and blocks merges when cognitive risks are detected.
+
+  **What it does:**
+  - Scores prompt files, copy, and UI text for cognitive load, manipulation risk, and comprehension confidence
+  - Posts a detailed score breakdown table as a PR comment
+  - Blocks merges on threshold breach (configurable: fail or warn)
+  - Supports human override with justification — every override is logged to the audit trail
+  - Tracks score deltas against a versioned baseline
+
+  **Supported file types:** `.txt`, `.json`, `.md`, `.yaml`, `.prompt` (configurable via `.cognarc.yml`)
+
+  **Requirements:** A CognArc workspace (free tier available at cognarc.ai)
+
+categories:
+  - 'Code quality'
+  - 'Testing'
+  - 'Security'
