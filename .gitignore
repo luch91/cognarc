@@ -19,3 +19,5 @@ __pycache__
 *.safetensors
 services/cognitive-scoring/tribe-inference/hf_model/
 services/cognitive-scoring/tribe-inference/cache/
+
+.vercel

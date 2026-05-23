@@ -1,20 +1,8 @@
 import { NavLink, Outlet } from 'react-router-dom'
 import { KillSwitch } from './KillSwitch.js'
-import { useRole } from '../context/RoleContext.js'
-import type { Role } from '../context/RoleContext.js'
+import { useKillSwitch } from '../context/KillSwitchContext.js'
 
-const ALL_ROLES: Role[] = ['overview', 'engineer', 'pm', 'growth', 'designer', 'safety']
-
-const ROLE_LABELS: Record<Role, string> = {
-  overview: 'Workspace',
-  engineer: 'Engineer',
-  pm: 'Product',
-  growth: 'Growth',
-  designer: 'Designer',
-  safety: 'Safety',
-}
-
-const NAV_ITEMS: Array<{ to: string; label: string; role?: Role }> = [
+const NAV_ITEMS: Array<{ to: string; label: string }> = [
   { to: '/', label: 'Workspace Overview' },
   { to: '/engineer', label: 'Engineer' },
   { to: '/pm', label: 'Product Manager' },
@@ -22,10 +10,11 @@ const NAV_ITEMS: Array<{ to: string; label: string; role?: Role }> = [
   { to: '/designer', label: 'Designer' },
   { to: '/safety', label: 'Safety / Red Team' },
   { to: '/approvals', label: 'Act-Gated Approvals' },
+  { to: '/settings', label: 'Settings' },
 ]
 
 export function Layout() {
-  const { role, setRole } = useRole()
+  const { banner, setBanner } = useKillSwitch()
 
   return (
     <div className="flex h-screen bg-gray-50 overflow-hidden">
@@ -57,22 +46,6 @@ export function Layout() {
           ))}
         </nav>
 
-        {/* Role switcher */}
-        <div className="px-3 py-3 border-t border-gray-100">
-          <label className="block text-xs font-semibold text-gray-400 uppercase tracking-wide mb-1.5">
-            View as
-          </label>
-          <select
-            value={role}
-            onChange={(e) => setRole(e.target.value as Role)}
-            className="w-full text-sm border border-gray-200 rounded-lg px-2 py-1.5 bg-white focus:outline-none focus:ring-2 focus:ring-brand-500"
-            aria-label="Switch role"
-          >
-            {ALL_ROLES.map((r) => (
-              <option key={r} value={r}>{ROLE_LABELS[r]}</option>
-            ))}
-          </select>
-        </div>
       </aside>
 
       {/* Main */}
@@ -84,6 +57,20 @@ export function Layout() {
           </span>
           <KillSwitch />
         </header>
+
+        {/* Kill Switch banner */}
+        {banner && (
+          <div className="flex items-center justify-between px-6 py-2 bg-amber-50 border-b border-amber-200 text-amber-800 text-sm font-medium">
+            <span>⚠ Agent actions paused — monitoring continues</span>
+            <button
+              onClick={() => setBanner(false)}
+              className="ml-4 text-amber-600 hover:text-amber-800 font-bold leading-none"
+              aria-label="Dismiss banner"
+            >
+              ✕
+            </button>
+          </div>
+        )}
 
         {/* Content */}
         <main className="flex-1 overflow-y-auto p-6">

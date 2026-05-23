@@ -1,12 +1,47 @@
 import { useRef, useState } from 'react'
 import { useQuery } from '@tanstack/react-query'
 import {
-  ResponsiveContainer, LineChart, Line, XAxis, YAxis, Tooltip, Legend,
+  ResponsiveContainer, LineChart, Line, AreaChart, Area, XAxis, YAxis, Tooltip, Legend, ReferenceLine,
 } from 'recharts'
-import { fetchCreativeAssets, fetchTrustDrift } from '../api/mock.js'
+import { fetchTrustDrift } from '../api/mock.js'
+import { mockCreativeAssets } from '../api/mock.js'
 import { Card } from '../components/Card.js'
 import { RiskBadge } from '../components/RiskBadge.js'
 import { Spinner } from '../components/Spinner.js'
+import type { CreativeAsset } from '../api/types.js'
+
+const FUNNEL_STEPS = [
+  { step: 'Ad Creative',       load: 34, trust: 81, risk: 'LOW'    },
+  { step: 'Landing Page',      load: 52, trust: 74, risk: 'MEDIUM' },
+  { step: 'Sign-Up Flow',      load: 71, trust: 58, risk: 'MEDIUM' },
+  { step: 'Onboarding',        load: 83, trust: 41, risk: 'HIGH'   },
+  { step: 'First Value Moment',load: 44, trust: 69, risk: 'LOW'    },
+]
+
+const RISK_BADGE: Record<string, string> = {
+  LOW:    'bg-green-100 text-green-700',
+  MEDIUM: 'bg-yellow-100 text-yellow-700',
+  HIGH:   'bg-red-100 text-red-700',
+}
+
+const TRUST_DRIFT_DATA = [
+  { date: '5/5',  trust: 72 },
+  { date: '5/6',  trust: 74 },
+  { date: '5/7',  trust: 71 },
+  { date: '5/8',  trust: 69 },
+  { date: '5/9',  trust: 68 },
+  { date: '5/10', trust: 65 },
+  { date: '5/11', trust: 63 },
+  { date: '5/12', trust: 61 },
+  { date: '5/13', trust: 64 },
+  { date: '5/14', trust: 62 },
+  { date: '5/15', trust: 60 },
+  { date: '5/16', trust: 58 },
+  { date: '5/17', trust: 57 },
+  { date: '5/18', trust: 55 },
+]
+
+const TRUST_DRIFT_X_TICKS = ['5/5', '5/8', '5/11', '5/14', '5/18']
 
 const VARIANT_SCORES = [
   { id: 'v1', name: 'Variant A — "Start your journey"', cognitive_load: 34, trust: 84, manipulation: 8, rank: 1 },
@@ -15,10 +50,9 @@ const VARIANT_SCORES = [
 ]
 
 export function GrowthView() {
-  const { data: assets, isLoading: assLoading } = useQuery({ queryKey: ['creative-assets'], queryFn: fetchCreativeAssets })
   const { data: trustDrift, isLoading: tdLoading } = useQuery({ queryKey: ['trust-drift'], queryFn: fetchTrustDrift })
   const fileInputRef = useRef<HTMLInputElement>(null)
-  const [uploadLabel, setUploadLabel] = useState<string | null>(null)
+  const [queue, setQueue] = useState<CreativeAsset[]>(mockCreativeAssets)
 
   const spring = trustDrift?.filter((d) => d.campaign === 'Spring Launch') ?? []
   const retention = trustDrift?.filter((d) => d.campaign === 'Retention Drive') ?? []
@@ -27,6 +61,36 @@ export function GrowthView() {
     'Spring Launch': s.trust,
     'Retention Drive': retention[i]?.trust,
   }))
+
+  function handleUpload(e: React.ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0]
+    if (!file) return
+    e.target.value = ''
+
+    const newId = `upload-${Date.now()}`
+    const newItem: CreativeAsset = {
+      id: newId,
+      name: file.name,
+      type: file.type.startsWith('image') ? 'image' : file.type.startsWith('video') ? 'video' : 'copy',
+      uploaded_at: new Date().toISOString(),
+      status: 'queued',
+      risk: 'LOW',
+    }
+
+    setQueue((prev) => [newItem, ...prev])
+
+    setTimeout(() => {
+      setQueue((prev) => prev.map((a) => a.id === newId ? { ...a, status: 'processing' } : a))
+    }, 2000)
+
+    setTimeout(() => {
+      setQueue((prev) => prev.map((a) =>
+        a.id === newId
+          ? { ...a, status: 'complete', cognitive_load: 61, trust: 67, risk: 'MEDIUM' }
+          : a
+      ))
+    }, 5000)
+  }
 
   return (
     <div className="space-y-6">
@@ -50,46 +114,39 @@ export function GrowthView() {
           accept="image/*,text/*,video/*"
           className="hidden"
           aria-label="Upload creative asset"
-          onChange={(e) => {
-            const file = e.target.files?.[0]
-            if (file) setUploadLabel(`"${file.name}" queued for evaluation`)
-          }}
+          onChange={handleUpload}
         />
-        {uploadLabel && (
-          <div className="mb-3 text-xs bg-blue-50 text-blue-700 px-3 py-2 rounded-lg">{uploadLabel}</div>
-        )}
-        {assLoading ? (
-          <div className="flex justify-center py-4"><Spinner /></div>
-        ) : (
-          <div className="space-y-2">
-            {assets?.map((a) => (
-              <div key={a.id} className="flex items-center gap-3 p-3 rounded-lg border border-gray-100 hover:bg-gray-50 transition-colors">
-                <span className="text-lg" aria-hidden>
-                  {a.type === 'image' ? '🖼' : a.type === 'video' ? '🎬' : '📝'}
-                </span>
-                <div className="flex-1 min-w-0">
-                  <p className="text-sm font-medium text-gray-700 truncate">{a.name}</p>
-                  <p className="text-xs text-gray-400">{new Date(a.uploaded_at).toLocaleString()}</p>
-                </div>
-                <div className="flex items-center gap-3 shrink-0">
-                  {a.status === 'complete' && a.cognitive_load !== undefined && (
-                    <span className="text-xs text-gray-500">
-                      Load: <span className="font-semibold">{a.cognitive_load}</span> · Trust: <span className="font-semibold">{a.trust}</span>
-                    </span>
-                  )}
-                  <RiskBadge risk={a.risk} />
-                  <span className={`text-xs px-1.5 py-0.5 rounded font-semibold ${
-                    a.status === 'complete' ? 'bg-green-100 text-green-700' :
-                    a.status === 'processing' ? 'bg-blue-100 text-blue-700' :
-                    'bg-gray-100 text-gray-500'
-                  }`}>
-                    {a.status}
-                  </span>
-                </div>
+        <div className="space-y-2">
+          {queue.map((a) => (
+            <div key={a.id} className="flex items-center gap-3 p-3 rounded-lg border border-gray-100 hover:bg-gray-50 transition-colors">
+              <span className="text-lg" aria-hidden>
+                {a.type === 'image' ? '🖼' : a.type === 'video' ? '🎬' : '📝'}
+              </span>
+              <div className="flex-1 min-w-0">
+                <p className="text-sm font-medium text-gray-700 truncate">{a.name}</p>
+                <p className="text-xs text-gray-400">{new Date(a.uploaded_at).toLocaleString()}</p>
               </div>
-            ))}
-          </div>
-        )}
+              <div className="flex items-center gap-3 shrink-0">
+                {a.status === 'complete' && a.cognitive_load !== undefined && (
+                  <span className="text-xs text-gray-500">
+                    Load: <span className="font-semibold">{a.cognitive_load}</span> · Trust: <span className="font-semibold">{a.trust}</span>
+                  </span>
+                )}
+                {a.status !== 'complete' && (
+                  <span className="text-xs text-gray-400">Load: — · Trust: —</span>
+                )}
+                <RiskBadge risk={a.risk} />
+                <span className={`text-xs px-1.5 py-0.5 rounded font-semibold ${
+                  a.status === 'complete' ? 'bg-green-100 text-green-700' :
+                  a.status === 'processing' ? 'bg-blue-100 text-blue-700' :
+                  'bg-gray-100 text-gray-500'
+                }`}>
+                  {a.status}
+                </span>
+              </div>
+            </div>
+          ))}
+        </div>
       </Card>
 
       {/* Variant Ranker */}
@@ -111,6 +168,76 @@ export function GrowthView() {
               </div>
             </div>
           ))}
+        </div>
+      </Card>
+
+      {/* Brand Trust Drift Monitor */}
+      <Card title="Brand Trust Drift Monitor">
+        <p className="text-xs text-gray-400 mb-4">Longitudinal trust coherence across evaluated campaign assets</p>
+        <ResponsiveContainer width="100%" height={200}>
+          <AreaChart data={TRUST_DRIFT_DATA} margin={{ top: 4, right: 16, bottom: 0, left: -20 }}>
+            <defs>
+              <linearGradient id="trustFill" x1="0" y1="0" x2="0" y2="1">
+                <stop offset="5%" stopColor="#14b8a6" stopOpacity={0.15} />
+                <stop offset="95%" stopColor="#14b8a6" stopOpacity={0} />
+              </linearGradient>
+            </defs>
+            <XAxis dataKey="date" tick={{ fontSize: 10 }} ticks={TRUST_DRIFT_X_TICKS} />
+            <YAxis domain={[0, 100]} tick={{ fontSize: 10 }} />
+            <Tooltip />
+            <Legend wrapperStyle={{ fontSize: 12 }} />
+            <ReferenceLine y={65} stroke="#f59e0b" strokeDasharray="4 3" label={{ value: 'Alert threshold', position: 'insideTopRight', fontSize: 10, fill: '#f59e0b' }} />
+            <Area type="monotone" dataKey="trust" name="Trust Coherence" stroke="#14b8a6" fill="url(#trustFill)" strokeWidth={2} dot={false} />
+          </AreaChart>
+        </ResponsiveContainer>
+        <div className="mt-3 flex items-center gap-1.5 text-sm text-gray-600">
+          <span>Current: <strong className="text-gray-800">55</strong></span>
+          <span className="text-gray-300">·</span>
+          <span>7-day delta: <strong className="text-gray-800">−7</strong></span>
+          <span className="text-gray-300">·</span>
+          <span>Trend: <strong className="text-red-500">↓ Declining</strong></span>
+        </div>
+        <div className="mt-3 bg-amber-50 border-l-4 border-amber-400 rounded-r-lg px-4 py-3 text-sm text-amber-800">
+          ⚠ Trust coherence has declined 17 points over 14 days. Review recent campaign assets for manipulation patterns.
+        </div>
+      </Card>
+
+      {/* Cognitive Funnel Mapper */}
+      <Card title="Cognitive Funnel Mapper">
+        <p className="text-xs text-gray-400 mb-4">Weekly cadence — last updated 5/18/2026</p>
+
+        {/* Step table */}
+        <div className="grid grid-cols-5 gap-2 mb-5">
+          {FUNNEL_STEPS.map((s, i) => (
+            <div key={s.step} className={`rounded-lg border p-2.5 text-center ${s.risk === 'HIGH' ? 'border-red-200 bg-red-50' : s.risk === 'MEDIUM' ? 'border-yellow-200 bg-yellow-50' : 'border-gray-100 bg-gray-50'}`}>
+              <div className="text-xs text-gray-400 mb-1">Step {i + 1}</div>
+              <div className="text-xs font-semibold text-gray-700 leading-tight mb-2">{s.step}</div>
+              <div className="text-xs text-gray-500 space-y-0.5">
+                <div>Load: <strong className={s.load > 70 ? 'text-danger' : 'text-gray-700'}>{s.load}</strong></div>
+                <div>Trust: <strong className="text-gray-700">{s.trust}</strong></div>
+              </div>
+              <span className={`mt-1.5 inline-block text-[10px] font-bold px-1.5 py-0.5 rounded ${RISK_BADGE[s.risk]}`}>{s.risk}</span>
+            </div>
+          ))}
+        </div>
+
+        {/* Chart */}
+        <ResponsiveContainer width="100%" height={200}>
+          <LineChart data={FUNNEL_STEPS} margin={{ top: 4, right: 16, bottom: 0, left: -20 }}>
+            <XAxis dataKey="step" tick={{ fontSize: 10 }} />
+            <YAxis domain={[0, 100]} tick={{ fontSize: 10 }} />
+            <Tooltip />
+            <Legend wrapperStyle={{ fontSize: 12 }} />
+            <ReferenceLine x="Sign-Up Flow" stroke="#ef4444" strokeDasharray="4 3" label={{ value: 'Load peak', position: 'top', fontSize: 10, fill: '#ef4444' }} />
+            <ReferenceLine x="Onboarding"   stroke="#f59e0b" strokeDasharray="4 3" label={{ value: 'Trust gap',  position: 'top', fontSize: 10, fill: '#f59e0b' }} />
+            <Line type="monotone" dataKey="load"  name="Cognitive Load"  stroke="#f59e0b" dot={true} strokeWidth={2} />
+            <Line type="monotone" dataKey="trust" name="Trust Coherence" stroke="#10b981" dot={true} strokeWidth={2} />
+          </LineChart>
+        </ResponsiveContainer>
+
+        {/* Insight callout */}
+        <div className="mt-4 bg-amber-50 border-l-4 border-amber-400 rounded-r-lg px-4 py-3 text-sm text-amber-800">
+          ⚠ Trust drops 17 points at the Onboarding step. Users are being asked to connect integrations before the product has demonstrated value.
         </div>
       </Card>
 

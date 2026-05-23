@@ -12,6 +12,17 @@ const STATUS_BADGE: Record<string, string> = {
   rejected: 'bg-red-100 text-red-700',
 }
 
+const ALT_PREDICTIONS: Record<string, string> = {
+  'Deploy with soft-block warning':    'Predicted Load: 68, Manip: 45',
+  'Request human review only':         'Predicted Load: 68, Manip: 78 (unchanged)',
+  'Auto-remediate urgency language':   'Predicted Load: 52, Manip: 31',
+}
+
+const DECISION_DEADLINES: Record<string, string> = {
+  'ag1': '5/20/2026, 2:13 PM',
+  'ag2': '5/20/2026, 1:23 PM',
+}
+
 function DecisionModal({
   item,
   mode,
@@ -103,6 +114,11 @@ function ActGatedCard({ item }: { item: ActGatedItem }) {
             Requested: {new Date(item.requested_at).toLocaleString()} ·
             Type: <span className="font-mono">{item.action_type}</span>
           </p>
+          {item.status === 'pending' && DECISION_DEADLINES[item.id] && (
+            <p className="text-xs text-orange-500 font-medium mt-0.5">
+              Decision required by: {DECISION_DEADLINES[item.id]}
+            </p>
+          )}
         </div>
         <button
           onClick={() => setExpanded(!expanded)}
@@ -120,11 +136,29 @@ function ActGatedCard({ item }: { item: ActGatedItem }) {
           <div>
             <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-2">TRIBE Evidence — Cognitive Scores</p>
             <div className="flex flex-wrap gap-6 justify-around bg-white rounded-lg p-3 border border-gray-100">
-              <ScoreGauge label="Cognitive Load" value={item.cognitive_scores.cognitive_load} invert size="sm" />
-              <ScoreGauge label="Comprehension" value={item.cognitive_scores.comprehension} size="sm" />
-              <ScoreGauge label="Trust" value={item.cognitive_scores.trust} size="sm" />
-              <ScoreGauge label="Manipulation" value={item.cognitive_scores.manipulation_risk} invert size="sm" />
+              <div className="flex flex-col items-center">
+                <ScoreGauge label="Cognitive Load" value={item.cognitive_scores.cognitive_load} invert size="sm" />
+                <span className="text-xs text-gray-400 mt-0.5">± 7</span>
+              </div>
+              <div className="flex flex-col items-center">
+                <ScoreGauge label="Comprehension" value={item.cognitive_scores.comprehension} size="sm" />
+                <span className="text-xs text-gray-400 mt-0.5">± 9</span>
+              </div>
+              <div className="flex flex-col items-center">
+                <ScoreGauge label="Trust" value={item.cognitive_scores.trust} size="sm" />
+                <span className="text-xs text-gray-400 mt-0.5">± 6</span>
+              </div>
+              <div className="flex flex-col items-center">
+                <ScoreGauge label="Manipulation" value={item.cognitive_scores.manipulation_risk} invert size="sm" />
+                <span className="text-xs text-gray-400 mt-0.5">± 5</span>
+              </div>
             </div>
+          </div>
+
+          {/* Top brain regions */}
+          <div>
+            <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-1">Top Brain Regions</p>
+            <p className="text-sm text-gray-600">Prefrontal cortex · Anterior cingulate · Limbic system</p>
           </div>
 
           {/* Evidence summary */}
@@ -142,10 +176,16 @@ function ActGatedCard({ item }: { item: ActGatedItem }) {
           {/* Alternatives */}
           <div>
             <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-1">Alternatives Considered</p>
-            <ul className="space-y-1">
+            <ul className="space-y-2">
               {item.alternatives.map((alt, i) => (
-                <li key={i} className="text-sm text-gray-600 flex gap-2">
-                  <span className="text-gray-300">›</span>{alt}
+                <li key={i} className="flex gap-2">
+                  <span className="text-gray-300 mt-0.5 shrink-0">›</span>
+                  <div>
+                    <p className="text-sm text-gray-600">{alt}</p>
+                    {ALT_PREDICTIONS[alt] && (
+                      <p className="text-xs text-gray-400 mt-0.5">{ALT_PREDICTIONS[alt]}</p>
+                    )}
+                  </div>
                 </li>
               ))}
             </ul>

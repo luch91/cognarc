@@ -5,6 +5,7 @@ import { fetchAuditLog, fetchCicdRuns, fetchPromptBaselines } from '../api/mock.
 import { Card } from '../components/Card.js'
 import { Spinner } from '../components/Spinner.js'
 import { ZoneBadge } from '../components/ZoneBadge.js'
+import { useKillSwitch } from '../context/KillSwitchContext.js'
 import type { Zone } from '../api/types.js'
 
 function deltaChip(val: number, invert = false) {
@@ -29,18 +30,87 @@ const CICD_BADGE: Record<string, string> = {
   fail: 'bg-red-100 text-red-700',
 }
 
+const CICD_BASELINE_DELTA: Record<string, { delta: number; color: string }> = {
+  r1: { delta: +18, color: 'text-red-500'   },
+  r2: { delta: -12, color: 'text-green-600' },
+  r3: { delta:  -3, color: 'text-green-600' },
+  r4: { delta: +11, color: 'text-amber-500' },
+}
+
+const CICD_REWRITES: Record<string, { text: string; load: number; cc: number; risk: string }[]> = {
+  r1: [
+    { text: 'You can complete this setup in a few steps.',       load: 52, cc: 71, risk: 'LOW' },
+    { text: "Let's walk through the configuration together.",    load: 48, cc: 76, risk: 'LOW' },
+    { text: 'Configure your workspace (3 steps).',               load: 44, cc: 79, risk: 'LOW' },
+  ],
+  r4: [
+    { text: 'See how teams are using this feature.',             load: 41, cc: 72, risk: 'LOW' },
+    { text: 'Used by product teams to improve onboarding.',      load: 38, cc: 75, risk: 'LOW' },
+    { text: 'Learn how this works with a quick example.',        load: 36, cc: 78, risk: 'LOW' },
+  ],
+}
+
+function CicdRewritePanel({ runId }: { runId: string }) {
+  const [open, setOpen] = useState(false)
+  const rewrites = CICD_REWRITES[runId]
+  if (!rewrites) return null
+  return (
+    <div className="mt-2">
+      <button
+        onClick={() => setOpen((v) => !v)}
+        className="text-xs text-brand-500 hover:text-brand-700 focus:outline-none focus:underline"
+      >
+        {open ? '▲ Hide suggested rewrites' : `▼ View suggested rewrites (${rewrites.length})`}
+      </button>
+      {open && (
+        <div className="mt-2 space-y-1.5">
+          {rewrites.map((r, i) => (
+            <div key={i} className="flex items-center gap-3 bg-gray-50 rounded-lg px-3 py-2">
+              <span className="w-5 h-5 rounded-full bg-brand-100 text-brand-700 text-xs font-bold flex items-center justify-center shrink-0">
+                {i + 1}
+              </span>
+              <p className="flex-1 text-xs text-gray-700 italic min-w-0">"{r.text}"</p>
+              <span className="text-xs text-gray-400 shrink-0 whitespace-nowrap">
+                Load: {r.load} · CC: {r.cc} ·{' '}
+                <span className="text-green-600 font-semibold">{r.risk}</span>
+              </span>
+              <button className="text-xs px-2 py-1 rounded border border-teal-500 text-teal-600 hover:bg-teal-50 transition-colors shrink-0">
+                Use this
+              </button>
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
+  )
+}
+
 const ALL_ZONES: Zone[] = ['OBSERVE', 'RECOMMEND', 'ACT_AUTO', 'ACT_GATED']
 
 export function EngineerView() {
   const { data: baselines, isLoading: blLoading } = useQuery({ queryKey: ['prompt-baselines'], queryFn: fetchPromptBaselines })
   const { data: cicdRuns, isLoading: cicdLoading } = useQuery({ queryKey: ['cicd-runs'], queryFn: fetchCicdRuns })
   const { data: auditLog, isLoading: auditLoading } = useQuery({ queryKey: ['audit-log'], queryFn: fetchAuditLog })
+  const { extraEntries } = useKillSwitch()
 
   // Audit log filters
   const [zoneFilter, setZoneFilter] = useState<Zone | 'ALL'>('ALL')
   const [typeFilter, setTypeFilter] = useState('')
 
-  const filtered = (auditLog ?? []).filter((e) => {
+  const ksEntries = extraEntries.map((e) => ({
+    id: e.id,
+    timestamp: new Date().toISOString(),
+    workspace_id: 'ws-1',
+    action_type: e.action,
+    zone: e.zone as Zone,
+    policy_rule: 'rule:kill-switch',
+    outcome: e.outcome,
+    authorising_human_or_policy: e.authorisedBy,
+  }))
+
+  const combined = [...ksEntries, ...(auditLog ?? [])]
+
+  const filtered = combined.filter((e) => {
     if (zoneFilter !== 'ALL' && e.zone !== zoneFilter) return false
     if (typeFilter && !e.action_type.toLowerCase().includes(typeFilter.toLowerCase())) return false
     return true
@@ -128,10 +198,16 @@ export function EngineerView() {
                       ))}
                     </div>
                   )}
+                  <CicdRewritePanel runId={run.id} />
                 </div>
                 <div className="text-right shrink-0">
                   <div className="text-sm font-bold tabular-nums text-gray-700">{run.overall_score}</div>
                   <div className="text-xs text-gray-400">risk score</div>
+                  {CICD_BASELINE_DELTA[run.id] && (
+                    <div className={`text-xs font-semibold tabular-nums ${CICD_BASELINE_DELTA[run.id]!.color}`}>
+                      {CICD_BASELINE_DELTA[run.id]!.delta > 0 ? '+' : ''}{CICD_BASELINE_DELTA[run.id]!.delta} vs baseline
+                    </div>
+                  )}
                   <div className="text-xs text-gray-400 mt-1">{new Date(run.evaluated_at).toLocaleString()}</div>
                 </div>
               </div>

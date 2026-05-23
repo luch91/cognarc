@@ -1,9 +1,11 @@
+import { useState } from 'react'
 import { useQuery } from '@tanstack/react-query'
 import {
   ResponsiveContainer, LineChart, Line, XAxis, YAxis, Tooltip, Legend,
 } from 'recharts'
 import { fetchAgentActivity, fetchHealthTrend, fetchSurfaces } from '../api/mock.js'
 import { Card } from '../components/Card.js'
+import { OnboardingBanner } from '../components/OnboardingBanner.js'
 import { ScoreGauge } from '../components/ScoreGauge.js'
 import { Spinner } from '../components/Spinner.js'
 import { ZoneBadge } from '../components/ZoneBadge.js'
@@ -25,6 +27,7 @@ export function WorkspaceOverview() {
   const { data: trend, isLoading: trendLoading } = useQuery({ queryKey: ['health-trend'], queryFn: fetchHealthTrend })
   const { data: activity, isLoading: actLoading } = useQuery({ queryKey: ['agent-activity'], queryFn: fetchAgentActivity, refetchInterval: 30000 })
   const { data: surfaces, isLoading: surfLoading } = useQuery({ queryKey: ['surfaces'], queryFn: fetchSurfaces })
+  const [hasConnectedEndpoint, setHasConnectedEndpoint] = useState(false)
 
   const latest = trend?.[trend.length - 1]
   const pendingGated = activity?.filter((a) => a.zone === 'ACT_GATED' && a.status === 'pending') ?? []
@@ -32,6 +35,10 @@ export function WorkspaceOverview() {
   return (
     <div className="space-y-6">
       <h1 className="text-xl font-bold text-gray-800">Workspace Overview</h1>
+
+      {!hasConnectedEndpoint && (
+        <OnboardingBanner onConnected={() => setHasConnectedEndpoint(true)} />
+      )}
 
       {/* Health Score summary */}
       <Card title="Cognitive Health — Latest">

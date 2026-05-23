@@ -1,0 +1,12 @@
+node_modules
+**/node_modules
+.git
+**/dist
+apps/landing
+services
+packages
+tests
+infrastructure
+config
+*.log
+.turbo

@@ -1,4 +1,6 @@
 import { useState } from 'react'
+
+const SHARE_URL = 'https://cognarc.app/reports/ab-comparison-demo-001'
 import { Card } from '../components/Card.js'
 import { ScoreGauge } from '../components/ScoreGauge.js'
 
@@ -27,6 +29,13 @@ function Delta({ a, b, invert = false }: { a: number; b: number; invert?: boolea
 
 export function DesignerView() {
   const [heatmapFile, setHeatmapFile] = useState<string | null>(null)
+  const [shareCopied, setShareCopied] = useState(false)
+
+  function handleShare() {
+    navigator.clipboard.writeText(SHARE_URL)
+    setShareCopied(true)
+    setTimeout(() => setShareCopied(false), 2000)
+  }
 
   return (
     <div className="space-y-6">
@@ -70,7 +79,19 @@ export function DesignerView() {
                 <Delta a={VARIANT_A.manipulation} b={VARIANT_B.manipulation} invert />
               </div>
             </div>
-            <p className="text-xs font-semibold text-danger mt-2">Variant A preferred</p>
+            <div className="flex flex-col items-center gap-2 mt-2">
+              <div className="flex items-center gap-2">
+                <p className="text-xs font-semibold text-danger">Variant A preferred</p>
+                <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-green-100 text-green-700 uppercase tracking-wide">High Confidence</span>
+              </div>
+              <button
+                onClick={handleShare}
+                className="text-xs px-3 py-1 rounded-lg border border-teal-500 text-teal-600 hover:bg-teal-50 transition-colors"
+              >
+                {shareCopied ? 'Link copied!' : 'Share Report'}
+              </button>
+              <p className="text-[10px] text-gray-400">Shareable link · Valid for 30 days</p>
+            </div>
           </div>
 
           {/* Variant B */}
@@ -106,22 +127,28 @@ export function DesignerView() {
         }
       >
         {heatmapFile ? (
-          <div className="relative inline-block max-w-full">
-            <img
-              src={heatmapFile}
-              alt="Uploaded UI screenshot"
-              className="max-h-96 rounded-lg border border-gray-200 object-contain"
-            />
-            <div
-              className="absolute inset-0 rounded-lg pointer-events-none"
-              style={{
-                background: 'radial-gradient(ellipse 40% 30% at 35% 45%, rgba(239,68,68,0.35) 0%, rgba(245,158,11,0.2) 40%, transparent 70%), radial-gradient(ellipse 25% 20% at 70% 30%, rgba(245,158,11,0.3) 0%, transparent 60%)',
-              }}
-              aria-hidden
-            />
-            <p className="text-xs text-gray-400 mt-2">
-              Simulated attention heatmap overlay. Connect TRIBE for live cortical mapping.
-            </p>
+          <div className="inline-block max-w-full">
+            <div className="relative inline-block">
+              <img
+                src={heatmapFile}
+                alt="Uploaded UI screenshot"
+                className="max-h-96 rounded-lg border-2 border-yellow-400 object-contain"
+              />
+              <div
+                className="absolute inset-0 rounded-lg pointer-events-none"
+                style={{
+                  background: `radial-gradient(ellipse at 30% 25%, rgba(255,50,50,0.35) 0%, rgba(255,165,0,0.25) 30%, rgba(255,255,0,0.15) 55%, transparent 75%),
+                    radial-gradient(ellipse at 70% 60%, rgba(255,100,50,0.28) 0%, rgba(255,200,0,0.18) 35%, transparent 65%)`,
+                  borderRadius: 'inherit',
+                }}
+                aria-hidden
+              />
+            </div>
+            <div className="flex items-center justify-end gap-3 mt-2 text-xs text-gray-400">
+              <span className="flex items-center gap-1"><span className="w-2 h-2 rounded-full bg-red-500 inline-block" />High attention</span>
+              <span className="flex items-center gap-1"><span className="w-2 h-2 rounded-full bg-yellow-400 inline-block" />Medium</span>
+              <span className="flex items-center gap-1"><span className="w-2 h-2 rounded-full bg-green-400 inline-block" />Low</span>
+            </div>
           </div>
         ) : (
           <div className="flex flex-col items-center justify-center py-12 text-gray-400 border-2 border-dashed border-gray-200 rounded-xl">
@@ -146,7 +173,20 @@ export function DesignerView() {
             <tbody className="divide-y divide-gray-50">
               {ONBOARDING_STEPS.map((s) => (
                 <tr key={s.step}>
-                  <td className="py-2 pr-4 font-medium text-gray-700">{s.step}</td>
+                  <td className="py-2 pr-4">
+                    <div className="flex flex-wrap items-center gap-1.5">
+                      <span className="font-medium text-gray-700">{s.step}</span>
+                      {s.step === 'Profile' && (
+                        <span className="text-[10px] font-bold px-1.5 py-0.5 rounded-full bg-orange-500 text-white whitespace-nowrap">⚠ Trust Timing</span>
+                      )}
+                      {s.load > 80 && (
+                        <span className="text-[10px] font-bold px-1.5 py-0.5 rounded-full bg-red-500 text-white whitespace-nowrap">⚠ Choice Overload</span>
+                      )}
+                      {s.comprehension < 55 && (
+                        <span className="text-[10px] font-bold px-1.5 py-0.5 rounded-full bg-amber-500 text-white whitespace-nowrap">⚠ Comprehension Gap</span>
+                      )}
+                    </div>
+                  </td>
                   <td className="py-2 px-2 text-right">
                     <span className={`font-semibold tabular-nums ${s.load > 70 ? 'text-danger' : s.load > 50 ? 'text-warning' : 'text-success'}`}>
                       {s.load}
@@ -167,6 +207,9 @@ export function DesignerView() {
         </div>
         <p className="text-xs text-gray-400 mt-3">
           Steps with load &gt; 70 are highlighted in red. Steps with comprehension &lt; 55 indicate likely abandonment.
+        </p>
+        <p className="text-xs text-gray-400 mt-1">
+          ⚠ Comprehension Gap: CC &lt; 55 · ⚠ Choice Overload: CL &gt; 83 · ⚠ Trust Timing: data requested before value demonstrated
         </p>
       </Card>
     </div>

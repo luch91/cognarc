@@ -1,10 +1,16 @@
-import { useRef } from 'react'
+import { useRef, useState } from 'react'
 import { useQuery } from '@tanstack/react-query'
 import { useVirtualizer } from '@tanstack/react-virtual'
-import { fetchAuditLog, fetchManipulationFlags, fetchRemediations } from '../api/mock.js'
+import { fetchAuditLog, fetchRemediations } from '../api/mock.js'
 import { Card } from '../components/Card.js'
+import { EvidenceDrawer } from '../components/EvidenceDrawer.js'
 import { Spinner } from '../components/Spinner.js'
 import { ZoneBadge } from '../components/ZoneBadge.js'
+
+const CONTENT_FLAG_TAXONOMY: Record<string, Record<string, number>> = {
+  'audit-5':  { FU: 84, SP:  8, AE: 23, AM: 71, SD:  6, OB: 15 },
+  'audit-11': { FU: 12, SP: 71, AE:  8, AM: 19, SD: 44, OB:  9 },
+}
 
 const STATUS_STYLES: Record<string, string> = {
   open: 'bg-red-100 text-red-700',
@@ -13,6 +19,30 @@ const STATUS_STYLES: Record<string, string> = {
   clear: 'bg-green-100 text-green-700',
   reemergent: 'bg-red-100 text-red-700',
 }
+
+const CATEGORY_STYLES: Record<string, string> = {
+  false_urgency:             'bg-red-500 text-white',
+  authority_mimicry:         'bg-orange-500 text-white',
+  sycophantic_drift:         'bg-amber-400 text-white',
+  obfuscation:               'bg-blue-500 text-white',
+  social_proof_fabrication:  'bg-purple-500 text-white',
+}
+
+interface FeedEntry {
+  id: number
+  category: string
+  score: number
+  time: string
+  excerpt: string
+}
+
+const FEED_ENTRIES: FeedEntry[] = [
+  { id: 1, category: 'false_urgency',            score: 84, time: '2 min ago',  excerpt: 'Act now — experts unanimously agree. Limited time only...' },
+  { id: 2, category: 'authority_mimicry',         score: 71, time: '11 min ago', excerpt: 'As verified by leading medical institutions, this approach...' },
+  { id: 3, category: 'sycophantic_drift',         score: 58, time: '23 min ago', excerpt: "You're absolutely right, and your instinct here is spot on..." },
+  { id: 4, category: 'obfuscation',               score: 63, time: '41 min ago', excerpt: 'The multifaceted synergistic framework leverages dynamic...' },
+  { id: 5, category: 'false_urgency',             score: 79, time: '1 hr ago',   excerpt: 'Only 3 spots remaining. This offer expires at midnight tonight...' },
+]
 
 function downloadJson(data: unknown, filename: string) {
   const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' })
@@ -25,7 +55,7 @@ function downloadJson(data: unknown, filename: string) {
 }
 
 export function SafetyView() {
-  const { data: flags, isLoading: flagLoading } = useQuery({ queryKey: ['manipulation-flags'], queryFn: fetchManipulationFlags })
+  const [selectedEntry, setSelectedEntry] = useState<FeedEntry | null>(null)
   const { data: remediations, isLoading: remLoading } = useQuery({ queryKey: ['remediations'], queryFn: fetchRemediations })
   const { data: auditLog, isLoading: auditLoading } = useQuery({ queryKey: ['audit-log'], queryFn: fetchAuditLog })
 
@@ -42,43 +72,33 @@ export function SafetyView() {
       <h1 className="text-xl font-bold text-gray-800">Safety / Red Team View</h1>
 
       {/* Manipulation Detection Feed */}
-      <Card title="Manipulation Detection Feed">
-        {flagLoading ? (
-          <div className="flex justify-center py-4"><Spinner /></div>
-        ) : (
-          <div className="space-y-4">
-            {flags?.map((flag) => (
-              <div key={flag.id} className="border border-gray-200 rounded-xl p-4 space-y-2">
-                <div className="flex items-start gap-3">
-                  <span className={`px-2 py-0.5 rounded text-xs font-bold shrink-0 ${STATUS_STYLES[flag.status]}`}>
-                    {flag.status.toUpperCase()}
-                  </span>
-                  <div className="flex-1 min-w-0">
-                    <p className="text-sm font-semibold text-gray-700">{flag.source}</p>
-                    <p className="text-xs text-gray-400">{new Date(flag.timestamp).toLocaleString()}</p>
-                  </div>
-                  <div className="text-right shrink-0">
-                    <span className="text-2xl font-bold tabular-nums text-danger">{flag.overall_risk}</span>
-                    <p className="text-xs text-gray-400">overall risk</p>
-                  </div>
-                </div>
-                <div className="flex flex-wrap gap-1">
-                  {flag.categories.map((cat) => (
-                    <span key={cat} className="text-xs bg-red-50 text-red-600 px-1.5 py-0.5 rounded">
-                      {cat.replace(/_/g, ' ')}
-                    </span>
-                  ))}
-                </div>
-                <div className="space-y-1">
-                  <p className="text-xs font-semibold text-gray-500">Evidence:</p>
-                  {flag.evidence.map((e, i) => (
-                    <p key={i} className="text-xs text-gray-600 italic ml-2">"{e}"</p>
-                  ))}
-                </div>
-              </div>
-            ))}
-          </div>
-        )}
+      <Card
+        title="Manipulation Detection Feed"
+        action={
+          <span className="flex items-center gap-1.5 text-xs text-green-600 font-medium">
+            <span className="w-2 h-2 rounded-full bg-green-500 animate-pulse" />
+            Live
+          </span>
+        }
+      >
+        <div className="space-y-2">
+          {FEED_ENTRIES.map((entry) => (
+            <div key={entry.id} className="flex items-center gap-3 p-3 rounded-lg border border-gray-100 hover:bg-gray-50 transition-colors">
+              <span className={`px-2 py-0.5 rounded-full text-xs font-semibold shrink-0 ${CATEGORY_STYLES[entry.category] ?? 'bg-gray-200 text-gray-600'}`}>
+                {entry.category.replace(/_/g, ' ')}
+              </span>
+              <span className="text-sm font-bold text-gray-700 shrink-0 tabular-nums">{entry.score}/100</span>
+              <span className="text-xs text-gray-400 shrink-0">{entry.time}</span>
+              <span className="flex-1 text-xs font-mono text-gray-500 truncate">{entry.excerpt}</span>
+              <button
+                onClick={() => setSelectedEntry(entry)}
+                className="text-xs text-brand-500 hover:text-brand-700 shrink-0 focus:outline-none focus:underline"
+              >
+                View Evidence
+              </button>
+            </div>
+          ))}
+        </div>
       </Card>
 
       {/* Post-Remediation Monitor */}
@@ -109,6 +129,8 @@ export function SafetyView() {
         )}
       </Card>
 
+      <EvidenceDrawer entry={selectedEntry} onClose={() => setSelectedEntry(null)} />
+
       {/* Audit Trail */}
       <Card
         title={`Full Audit Trail (${auditLog?.length ?? 0} entries)`}
@@ -132,6 +154,9 @@ export function SafetyView() {
               <span>Outcome</span>
               <span className="text-right">Time</span>
             </div>
+            <p className="text-[10px] text-gray-400 italic mb-1">
+              For CONTENT_FLAG entries: FU · SP · AE · AM · SD · OB (scores &gt;70 in red)
+            </p>
             <div ref={parentRef} className="overflow-y-auto" style={{ height: 400 }} role="log" aria-label="Full audit trail">
               <div style={{ height: virtualizer.getTotalSize(), position: 'relative' }}>
                 {virtualizer.getVirtualItems().map((vItem) => {
@@ -142,9 +167,20 @@ export function SafetyView() {
                       data-index={vItem.index}
                       ref={virtualizer.measureElement}
                       style={{ position: 'absolute', top: vItem.start, left: 0, right: 0 }}
-                      className="grid grid-cols-[1fr_80px_120px_80px] gap-2 items-center py-2 border-b border-gray-50 hover:bg-gray-50 text-sm"
+                      className="grid grid-cols-[1fr_80px_120px_80px] gap-2 items-start py-2 border-b border-gray-50 hover:bg-gray-50 text-sm"
                     >
-                      <span className="text-gray-700 truncate font-mono text-xs">{entry.action_type}</span>
+                      <div className="min-w-0">
+                        <span className="text-gray-700 font-mono text-xs block truncate">{entry.action_type}</span>
+                        {entry.action_type === 'CONTENT_FLAG' && CONTENT_FLAG_TAXONOMY[entry.id] && (
+                          <span className="font-mono text-[10px] mt-0.5 block">
+                            {Object.entries(CONTENT_FLAG_TAXONOMY[entry.id]!).map(([cat, score]) => (
+                              <span key={cat} className={`mr-2 ${score > 70 ? 'text-red-500' : 'text-gray-400'}`}>
+                                {cat}:{score}
+                              </span>
+                            ))}
+                          </span>
+                        )}
+                      </div>
                       <ZoneBadge zone={entry.zone} />
                       <span className="text-xs text-gray-500 truncate">{entry.outcome}</span>
                       <span className="text-xs text-gray-400 text-right tabular-nums">

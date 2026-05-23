@@ -26,11 +26,13 @@ export const mockHealthTrend: HealthPoint[] = days(30).map((date) => ({
 }))
 
 export const mockAgentActivity: AgentAction[] = [
-  { id: 'a1', timestamp: new Date(Date.now() - 120000).toISOString(), action_type: 'PROMPT_EVALUATED', zone: 'OBSERVE', status: 'executed', description: 'Evaluated prompt hash 8f3a...', workspace_id: 'ws-1' },
-  { id: 'a2', timestamp: new Date(Date.now() - 300000).toISOString(), action_type: 'THRESHOLD_BREACH', zone: 'RECOMMEND', status: 'executed', description: 'Cognitive load exceeded 80 on flow step 3', workspace_id: 'ws-1' },
-  { id: 'a3', timestamp: new Date(Date.now() - 600000).toISOString(), action_type: 'CONTENT_FLAG', zone: 'ACT_GATED', status: 'pending', description: 'Manipulation risk 78/100 on campaign copy v2', workspace_id: 'ws-1' },
-  { id: 'a4', timestamp: new Date(Date.now() - 900000).toISOString(), action_type: 'WRITEBACK_SYNC', zone: 'ACT_AUTO', status: 'executed', description: 'Synced cognitive labels to Segment', workspace_id: 'ws-1' },
-  { id: 'a5', timestamp: new Date(Date.now() - 1800000).toISOString(), action_type: 'BASELINE_UPSERT', zone: 'ACT_AUTO', status: 'executed', description: 'Upserted baseline for prompt #42', workspace_id: 'ws-1' },
+  { id: 'a1', timestamp: new Date(Date.now() - 2 * 60000).toISOString(),   action_type: 'CONTENT_FLAG',     zone: 'ACT_GATED', status: 'pending',  description: 'Manipulation risk 84/100 detected in Spring Launch copy — awaiting human approval', workspace_id: 'ws-1' },
+  { id: 'a2', timestamp: new Date(Date.now() - 12 * 60000).toISOString(),  action_type: 'PROMPT_EVALUATED', zone: 'OBSERVE',   status: 'executed', description: 'Scored onboarding prompt v7 — cognitive load 71, trust 58, comprehension 62', workspace_id: 'ws-1' },
+  { id: 'a3', timestamp: new Date(Date.now() - 23 * 60000).toISOString(),  action_type: 'WRITEBACK_SYNC',   zone: 'ACT_AUTO',  status: 'executed', description: 'Wrote cognitive labels for 342 sessions to Segment (load > 70 cohort)', workspace_id: 'ws-1' },
+  { id: 'a4', timestamp: new Date(Date.now() - 41 * 60000).toISOString(),  action_type: 'THRESHOLD_BREACH', zone: 'RECOMMEND', status: 'executed', description: 'Trust dropped 17 pts at Onboarding — recommended delaying integration prompts', workspace_id: 'ws-1' },
+  { id: 'a5', timestamp: new Date(Date.now() - 60 * 60000).toISOString(),  action_type: 'BASELINE_UPSERT',  zone: 'OBSERVE',   status: 'executed', description: 'Refreshed cognitive baseline for workspace ws-1 (30-day rolling window)', workspace_id: 'ws-1' },
+  { id: 'a6', timestamp: new Date(Date.now() - 120 * 60000).toISOString(), action_type: 'KILL_SWITCH',      zone: 'ACT_GATED', status: 'executed', description: 'Kill switch activated by admin — all ACT_AUTO actions paused for 14 min', workspace_id: 'ws-1' },
+  { id: 'a7', timestamp: new Date(Date.now() - 180 * 60000).toISOString(), action_type: 'WRITEBACK_SYNC',   zone: 'ACT_AUTO',  status: 'executed', description: 'Synced manipulation taxonomy labels to Amplitude for Retention Drive campaign', workspace_id: 'ws-1' },
 ]
 
 export let mockKillSwitch: KillSwitchState = {
@@ -59,21 +61,41 @@ export const mockCicdRuns: CicdRun[] = [
   { id: 'r4', pr_number: 244, pr_title: 'feat: add upsell modal', branch: 'feat/upsell-modal', result: 'warn', overall_score: 61, evaluated_at: new Date(Date.now() - 172800000).toISOString(), breaches: ['manipulation_risk > 50'] },
 ]
 
-export const mockAuditLog: AuditEntry[] = Array.from({ length: 200 }, (_, i) => {
-  const zones = ['OBSERVE', 'RECOMMEND', 'ACT_AUTO', 'ACT_GATED'] as const
-  const types = ['PROMPT_EVALUATED', 'THRESHOLD_BREACH', 'WRITEBACK_SYNC', 'BASELINE_UPSERT', 'KILL_SWITCH', 'CONTENT_FLAG']
-  const outcomes = ['success', 'blocked', 'approved', 'rejected']
-  return {
-    id: `audit-${i}`,
-    timestamp: new Date(Date.now() - i * 900000).toISOString(),
-    workspace_id: 'ws-1',
-    action_type: types[i % types.length]!,
-    zone: zones[i % zones.length]!,
-    policy_rule: `rule:v1.${(i % 5) + 1}`,
-    outcome: outcomes[i % outcomes.length]!,
-    authorising_human_or_policy: i % 7 === 0 ? 'user:admin' : 'policy:v1.2',
-  }
-})
+const ACTION_ZONES: Record<string, 'OBSERVE' | 'RECOMMEND' | 'ACT_AUTO' | 'ACT_GATED'> = {
+  PROMPT_EVALUATED: 'OBSERVE',
+  THRESHOLD_BREACH: 'RECOMMEND',
+  WRITEBACK_SYNC:   'ACT_AUTO',
+  BASELINE_UPSERT:  'ACT_AUTO',
+  KILL_SWITCH:      'ACT_GATED',
+  CONTENT_FLAG:     'ACT_GATED',
+  FAIL_CICD_BUILD:  'ACT_AUTO',
+  PROMPT_REWRITE:   'ACT_GATED',
+}
+
+const EXTRA_AUDIT: AuditEntry[] = [
+  { id: 'audit-extra-0', timestamp: new Date(Date.now() - 1500000).toISOString(), workspace_id: 'ws-1', action_type: 'FAIL_CICD_BUILD',  zone: 'ACT_AUTO',  policy_rule: 'rule:v1.2', outcome: 'success',  authorising_human_or_policy: 'policy:v1.2' },
+  { id: 'audit-extra-1', timestamp: new Date(Date.now() - 3300000).toISOString(), workspace_id: 'ws-1', action_type: 'THRESHOLD_BREACH', zone: 'RECOMMEND', policy_rule: 'rule:v1.2', outcome: 'escalated', authorising_human_or_policy: 'policy:v1.2' },
+  { id: 'audit-extra-2', timestamp: new Date(Date.now() - 5100000).toISOString(), workspace_id: 'ws-1', action_type: 'PROMPT_REWRITE',   zone: 'ACT_GATED', policy_rule: 'rule:v1.2', outcome: 'pending',  authorising_human_or_policy: 'user:admin'  },
+]
+
+export const mockAuditLog: AuditEntry[] = [
+  ...EXTRA_AUDIT,
+  ...Array.from({ length: 200 }, (_, i) => {
+    const types = ['PROMPT_EVALUATED', 'THRESHOLD_BREACH', 'WRITEBACK_SYNC', 'BASELINE_UPSERT', 'KILL_SWITCH', 'CONTENT_FLAG']
+    const outcomes = ['success', 'blocked', 'approved', 'rejected']
+    const action_type = types[i % types.length]!
+    return {
+      id: `audit-${i}`,
+      timestamp: new Date(Date.now() - (i + 3) * 900000).toISOString(),
+      workspace_id: 'ws-1',
+      action_type,
+      zone: ACTION_ZONES[action_type] ?? 'OBSERVE',
+      policy_rule: `rule:v1.${(i % 5) + 1}`,
+      outcome: outcomes[i % outcomes.length]!,
+      authorising_human_or_policy: i % 7 === 0 ? 'user:admin' : 'policy:v1.2',
+    }
+  }),
+]
 
 export const mockConnectors: ConnectorStatus[] = [
   { name: 'segment', healthy: true, last_sync: new Date(Date.now() - 120000).toISOString(), events_today: 12847, write_back_enabled: true },

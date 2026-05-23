@@ -489,7 +489,7 @@ Implement:
 ---
 
 ### P-005 · Deploy TRIBE to GCP Cloud Run
-
+Read CLAUDE.md
 **Category:** Infrastructure  
 **Purpose:** Package TRIBE v2 as a Docker container and deploy to GCP Cloud Run with GPU support using the $300 free credit.
 
@@ -630,6 +630,7 @@ Write unit tests + integration test with a headless browser (Playwright).
 ### P-007 · Build Analytics Platform Connectors
 
 **Category:** Analytics  
+read CLAUDE.md
 **Purpose:** Create bidirectional connectors to Segment, Amplitude, Mixpanel, PostHog, and GA4 with cognitive label write-back.
 
 ```
@@ -822,7 +823,7 @@ Write a test that verifies the <200ms latency requirement under load.
 ---
 
 ### P-010 · Build the Manipulation Taxonomy Engine
-
+READ CLAUDE.md
 **Category:** Safety  
 **Purpose:** Create the continuous manipulation detection system that scores every AI output against the six-category taxonomy.
 
@@ -892,7 +893,7 @@ Implement:
 ---
 
 ### P-011 · Build the CognArc Dashboard
-
+READ CLAUDE.md
 **Category:** Infrastructure  
 **Purpose:** Create the React dashboard that gives all five buyer types visibility into cognitive scores, agent actions, and oversight status.
 
@@ -957,7 +958,7 @@ Mobile responsive. WCAG 2.1 AA accessible.
 ---
 
 ### P-012 · Build the Zero-Traffic A/B Decision Engine
-
+READ CLAUDE.md
 **Category:** Design  
 **Purpose:** Create the cognitive simulation engine that compares two UI variants and declares a winner without any live traffic.
 
@@ -1013,7 +1014,7 @@ Implement:
 ---
 
 ### P-013 · Build the Eval Platform Integration
-
+READ CLAUDE.md
 **Category:** Eval  
 **Purpose:** Create the Cognitive Scorer API that plugs into Braintrust, Langfuse, W&B, and Arize as a custom cognitive scoring dimension.
 
@@ -1077,7 +1078,7 @@ Include OpenAPI spec, Postman collection, and integration guides for each platfo
 ---
 
 ### P-014 · Build the Red Team Safety Agent
-
+READ CLAUDE.md
 **Category:** Red Team  
 **Purpose:** Create the continuous red team augmentation layer — post-remediation regression monitoring and neural evidence package generation.
 
@@ -1152,7 +1153,7 @@ Tests:
 *The fine-tuning pipeline is the compounding loop that makes CognArc's simulation accuracy improve over time. Build this last. It is the most consequential and most carefully governed capability in the system.*
 
 ---
-
+READ CLAUDE.md
 ### P-015 · Build the Phase 3 Fine-Tuning Pipeline
 
 **Category:** Platform  
@@ -1222,7 +1223,7 @@ Tests must verify:
 ---
 
 ### P-016 · End-to-End Integration Test Suite
-
+READ CLAUDE.md
 **Category:** Infrastructure  
 **Purpose:** Create the full integration test suite that validates CognArc works correctly across all services, including all oversight mechanisms.
 
@@ -1294,7 +1295,7 @@ Run with: pnpm test:integration
 ---
 
 ### P-017 · Build the CognArc Landing Page
-
+READ CLAUDE.md
 **Category:** Platform  
 **Purpose:** Create a production-quality public marketing landing page that communicates CognArc's value to all five buyer types and converts visitors to waitlist signups.
 
@@ -1326,8 +1327,7 @@ Build the following sections:
    continuously, automatically, before users encounter them."
    
    CTAs:
-   - Primary: "Join the Waitlist"
-   - Secondary: "See how it works" (scrolls to demo section)
+   "See how it works" (scrolls to demo section)
    
    Social proof bar:
    "Powered by TRIBE v2 · Meta AI Research · 1,000+ hours fMRI · 720 subjects"

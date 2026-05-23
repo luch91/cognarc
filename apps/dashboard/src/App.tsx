@@ -7,6 +7,7 @@ import { GrowthView } from './views/GrowthView.js'
 import { DesignerView } from './views/DesignerView.js'
 import { SafetyView } from './views/SafetyView.js'
 import { ApprovalsView } from './views/ApprovalsView.js'
+import { SettingsView } from './views/SettingsView.js'
 
 export function App() {
   return (
@@ -19,6 +20,7 @@ export function App() {
         <Route path="designer" element={<DesignerView />} />
         <Route path="safety" element={<SafetyView />} />
         <Route path="approvals" element={<ApprovalsView />} />
+        <Route path="settings" element={<SettingsView />} />
       </Route>
     </Routes>
   )
