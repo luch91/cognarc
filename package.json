@@ -4,7 +4,7 @@
   "version": "0.1.0",
   "description": "Agentic cognitive-behavioral AI evaluation and alignment platform",
   "scripts": {
-    "build": "turbo run build && cp -r apps/dashboard/dist ./dist",
+    "build": "turbo run build --force && cp -r apps/dashboard/dist ./dist",
     "dev": "turbo run dev",
     "test": "turbo run test",
     "test:integration": "jest --config tests/integration/jest.config.ts",

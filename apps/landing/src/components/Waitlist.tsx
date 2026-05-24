@@ -1,6 +1,6 @@
 import { useState } from 'react'
 
-const APP_URL = 'http://localhost:5173'
+const APP_URL = 'https://cognarc-dashboard.vercel.app'
 
 type Role = 'Engineer' | 'PM' | 'Growth' | 'Designer' | 'Red Team' | 'Other'
 const ROLES: Role[] = ['Engineer', 'PM', 'Growth', 'Designer', 'Red Team', 'Other']
