@@ -1,6 +1,0 @@
-{
-  "installCommand": "pnpm install",
-  "buildCommand": "cd apps/dashboard && npx tsc && npx vite build",
-  "outputDirectory": "apps/dashboard/dist",
-  "rewrites": [{ "source": "/(.*)", "destination": "/index.html" }]
-}
