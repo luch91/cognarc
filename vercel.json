@@ -1,4 +1,5 @@
 {
-  "outputDirectory": "dist",
+  "buildCommand": "turbo run build --force",
+  "outputDirectory": "apps/dashboard/dist",
   "rewrites": [{ "source": "/(.*)", "destination": "/index.html" }]
 }
