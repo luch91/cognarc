@@ -21,3 +21,8 @@ services/cognitive-scoring/tribe-inference/hf_model/
 services/cognitive-scoring/tribe-inference/cache/
 
 .vercel
+
+# Environment files — never commit secrets
+.env
+.env.*
+!.env.example
