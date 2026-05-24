@@ -1,3 +1,4 @@
 {
+  "outputDirectory": "apps/dashboard/dist",
   "rewrites": [{ "source": "/(.*)", "destination": "/index.html" }]
 }
