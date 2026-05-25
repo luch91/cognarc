@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react'
 
-const APP_URL = 'http://localhost:5173'
+const APP_URL = 'https://cognarc-dashboard.vercel.app'
 
 export function Nav() {
   const [scrolled, setScrolled] = useState(false)

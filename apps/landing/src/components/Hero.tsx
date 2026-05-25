@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from 'react'
 
-const APP_URL = 'http://localhost:5173'
+const APP_URL = 'https://cognarc-dashboard.vercel.app'
 
 const LOOP_STAGES = [
   { label: 'Sense', desc: 'AI outputs, UI changes, assets', color: '#14b8a6' },

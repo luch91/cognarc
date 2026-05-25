@@ -1,4 +1,4 @@
-const APP_URL = 'http://localhost:5173'
+const APP_URL = 'https://cognarc-dashboard.vercel.app'
 
 const TIERS = [
   {
