@@ -26,3 +26,6 @@ services/cognitive-scoring/tribe-inference/cache/
 .env
 .env.*
 !.env.example
+
+# Claude Code local settings — may contain tokens/secrets
+.claude/settings.local.json
