@@ -1,5 +1,428 @@
 import { useState } from 'react'
 import { Card } from '../components/Card.js'
+import { Spinner } from '../components/Spinner.js'
+import { useAppContext } from '../context/AppContext.js'
+import type { ConnectorConfig } from '../context/AppContext.js'
+
+const MASKED_KEYS: Record<string, string> = {
+  seg: '••••••••sg-k3x9',
+  amp: '••••••••amp-7f2a',
+  ph:  '••••••••phog-c1b4',
+  ga4: '••••••••ga4-8e5d',
+}
+
+function ConfigureModal({
+  connector,
+  onClose,
+  onSave,
+}: {
+  connector: ConnectorConfig
+  onClose: () => void
+  onSave: (updates: Partial<ConnectorConfig>) => void
+}) {
+  const [writeBack, setWriteBack] = useState(connector.writeBack)
+  const [eventFilter, setEventFilter] = useState('')
+  const [apiKey, setApiKey] = useState('')
+  const [testState, setTestState] = useState<'idle' | 'testing' | 'ok'>('idle')
+  const [reconnectState, setReconnectState] = useState<'idle' | 'connecting' | 'done'>('idle')
+  const [disconnectConfirm, setDisconnectConfirm] = useState(false)
+  const [localStatus, setLocalStatus] = useState(connector.status)
+
+  function handleTest() {
+    setTestState('testing')
+    setTimeout(() => setTestState('ok'), 1000)
+  }
+
+  function handleReconnect() {
+    setReconnectState('connecting')
+    setTimeout(() => {
+      setReconnectState('done')
+      setLocalStatus('connected')
+    }, 1500)
+  }
+
+  function handleSave() {
+    onSave({ writeBack, status: localStatus })
+    onClose()
+  }
+
+  function handleDisconnectConfirm() {
+    onSave({ status: 'degraded', writeBack: false })
+    onClose()
+  }
+
+  return (
+    <div
+      className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4"
+      role="dialog"
+      aria-modal="true"
+      aria-labelledby="cfg-modal-title"
+      onClick={(e) => { if (e.target === e.currentTarget) onClose() }}
+    >
+      <div className="bg-white rounded-2xl shadow-xl w-full max-w-md">
+        {/* Header */}
+        <div className="px-6 py-4 border-b border-gray-100 flex items-center justify-between">
+          <div className="flex items-center gap-2">
+            <span className={`w-7 h-7 rounded-full ${connector.color} flex items-center justify-center text-white text-xs font-bold shrink-0`}>
+              {connector.initial}
+            </span>
+            <h2 id="cfg-modal-title" className="text-base font-semibold text-gray-800">
+              Configure {connector.name}
+            </h2>
+          </div>
+          <button onClick={onClose} className="text-gray-400 hover:text-gray-600 text-xl leading-none" aria-label="Close">×</button>
+        </div>
+
+        {/* Body */}
+        <div className="px-6 py-4 space-y-4">
+          {localStatus === 'degraded' && reconnectState !== 'done' ? (
+            /* ── Degraded flow ── */
+            <>
+              <div className="flex items-center gap-2 px-3 py-2 bg-amber-50 border border-amber-200 rounded-lg">
+                <span className="w-2 h-2 rounded-full bg-amber-500 shrink-0" />
+                <span className="text-xs font-semibold text-amber-700">Degraded — reconnection required</span>
+              </div>
+              <div>
+                <label className="block text-xs font-semibold text-gray-500 mb-1">API Key</label>
+                <input
+                  type="password"
+                  value={apiKey}
+                  onChange={(e) => setApiKey(e.target.value)}
+                  placeholder="Paste your API key to reconnect"
+                  className="w-full text-sm border border-gray-200 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-brand-500"
+                />
+              </div>
+              <button
+                onClick={handleReconnect}
+                disabled={reconnectState === 'connecting'}
+                className="w-full text-sm py-2 rounded-lg bg-teal-500 text-white font-semibold hover:bg-teal-600 transition-colors disabled:opacity-50 flex items-center justify-center gap-2"
+              >
+                {reconnectState === 'connecting' ? <><Spinner /><span>Reconnecting…</span></> : 'Reconnect'}
+              </button>
+            </>
+          ) : (
+            /* ── Connected flow (or just reconnected) ── */
+            <>
+              {reconnectState === 'done' && (
+                <div className="flex items-center gap-2 px-3 py-2 bg-green-50 border border-green-200 rounded-lg">
+                  <span className="text-xs font-semibold text-green-700">✓ Reconnected successfully</span>
+                </div>
+              )}
+
+              <div>
+                <label className="block text-xs font-semibold text-gray-500 mb-1">API Key</label>
+                <input
+                  type="text"
+                  readOnly
+                  value={MASKED_KEYS[connector.id] ?? '••••••••••••••'}
+                  className="w-full text-sm border border-gray-100 bg-gray-50 rounded-lg px-3 py-2 text-gray-500 cursor-default"
+                />
+              </div>
+
+              <div className="flex items-center justify-between">
+                <span className="text-sm text-gray-600">Write-back enabled</span>
+                <button
+                  onClick={() => setWriteBack((v) => !v)}
+                  className={`relative w-8 h-4 rounded-full transition-colors focus:outline-none focus:ring-2 focus:ring-brand-500 ${writeBack ? 'bg-brand-500' : 'bg-gray-200'}`}
+                  aria-label="Toggle write-back"
+                >
+                  <span className={`absolute top-0.5 w-3 h-3 rounded-full bg-white shadow transition-transform ${writeBack ? 'translate-x-4' : 'translate-x-0.5'}`} />
+                </button>
+              </div>
+
+              <div>
+                <label className="block text-xs font-semibold text-gray-500 mb-1">Event Filter</label>
+                <input
+                  type="text"
+                  value={eventFilter}
+                  onChange={(e) => setEventFilter(e.target.value)}
+                  placeholder="e.g. page_view, click, form_submit"
+                  className="w-full text-sm border border-gray-200 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-brand-500"
+                />
+                <p className="text-xs text-gray-400 mt-1">{eventFilter ? eventFilter : 'All events'}</p>
+              </div>
+
+              <div className="flex items-center gap-2">
+                <button
+                  onClick={handleTest}
+                  disabled={testState === 'testing'}
+                  className="text-xs px-3 py-1.5 rounded-lg border border-brand-500 text-brand-600 hover:bg-brand-50 transition-colors disabled:opacity-50 flex items-center gap-1.5"
+                >
+                  {testState === 'testing' && <Spinner />}
+                  {testState === 'testing' ? 'Testing…' : 'Test Connection'}
+                </button>
+                {testState === 'ok' && <span className="text-xs text-green-600 font-medium">Connection healthy ✓</span>}
+              </div>
+
+              {disconnectConfirm ? (
+                <div className="bg-red-50 border border-red-200 rounded-lg p-3 space-y-2">
+                  <p className="text-xs text-red-700 font-medium">
+                    Disconnect {connector.name}? This will stop event ingestion and write-back.
+                  </p>
+                  <div className="flex gap-2">
+                    <button
+                      onClick={handleDisconnectConfirm}
+                      className="text-xs px-3 py-1.5 rounded-lg bg-danger text-white font-semibold hover:bg-red-600 transition-colors"
+                    >
+                      Confirm
+                    </button>
+                    <button
+                      onClick={() => setDisconnectConfirm(false)}
+                      className="text-xs px-3 py-1.5 rounded-lg border border-gray-200 text-gray-600 hover:bg-gray-50 transition-colors"
+                    >
+                      Cancel
+                    </button>
+                  </div>
+                </div>
+              ) : (
+                <button
+                  onClick={() => setDisconnectConfirm(true)}
+                  className="text-xs px-3 py-1.5 rounded-lg border border-danger text-danger hover:bg-red-50 transition-colors"
+                >
+                  Disconnect
+                </button>
+              )}
+            </>
+          )}
+        </div>
+
+        {/* Footer */}
+        <div className="px-6 py-4 border-t border-gray-100 flex justify-end gap-3">
+          <button
+            onClick={onClose}
+            className="text-sm px-4 py-2 rounded-lg border border-gray-200 text-gray-600 hover:bg-gray-50 transition-colors"
+          >
+            Cancel
+          </button>
+          <button
+            onClick={handleSave}
+            className="text-sm px-4 py-2 rounded-lg bg-brand-500 text-white font-semibold hover:bg-brand-600 transition-colors"
+          >
+            Save
+          </button>
+        </div>
+      </div>
+    </div>
+  )
+}
+
+// ── Eval Platform types & modal ─────────────────────────────────────────────
+
+interface EvalPlatform {
+  id: string
+  name: string
+  subline: string
+  authType: 'oauth' | 'apikey'
+}
+
+const EVAL_PLATFORMS: EvalPlatform[] = [
+  { id: 'braintrust', name: 'Braintrust',      subline: 'Cognitive scores appear as first-class scorer columns',   authType: 'oauth'  },
+  { id: 'langfuse',   name: 'Langfuse',         subline: 'Scores visible in trace evaluation view',                 authType: 'oauth'  },
+  { id: 'wandb',      name: 'Weights & Biases', subline: 'Cognitive scorer in W&B Weave evaluations',               authType: 'apikey' },
+  { id: 'arize',      name: 'Arize Phoenix',    subline: 'Cognitive dimensions in Phoenix eval dashboard',           authType: 'apikey' },
+]
+
+function EvalConnectModal({
+  platform,
+  onClose,
+  onConnect,
+}: {
+  platform: EvalPlatform
+  onClose: () => void
+  onConnect: () => void
+}) {
+  const [apiKey, setApiKey] = useState('')
+  const [projectId, setProjectId] = useState('')
+
+  function handleConnect() {
+    onConnect()
+    onClose()
+  }
+
+  return (
+    <div
+      className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4"
+      role="dialog"
+      aria-modal="true"
+      aria-labelledby="eval-modal-title"
+      onClick={(e) => { if (e.target === e.currentTarget) onClose() }}
+    >
+      <div className="bg-white rounded-2xl shadow-xl w-full max-w-md">
+        <div className="px-6 py-4 border-b border-gray-100 flex items-center justify-between">
+          <h2 id="eval-modal-title" className="text-base font-semibold text-gray-800">
+            Connect {platform.name} via {platform.authType === 'oauth' ? 'OAuth' : 'API Key'}
+          </h2>
+          <button onClick={onClose} className="text-gray-400 hover:text-gray-600 text-xl leading-none" aria-label="Close">×</button>
+        </div>
+
+        <div className="px-6 py-4 space-y-4">
+          {platform.authType === 'oauth' ? (
+            <p className="text-sm text-gray-600">
+              In a production environment, this would open an OAuth authorization flow with {platform.name}.
+              For this demo workspace, click below to simulate a successful connection.
+            </p>
+          ) : (
+            <>
+              <div>
+                <label className="block text-xs font-semibold text-gray-500 mb-1">API Key</label>
+                <input
+                  type="password"
+                  value={apiKey}
+                  onChange={(e) => setApiKey(e.target.value)}
+                  placeholder="Enter your API key"
+                  className="w-full text-sm border border-gray-200 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-brand-500"
+                />
+              </div>
+              <div>
+                <label className="block text-xs font-semibold text-gray-500 mb-1">Workspace / Project ID <span className="font-normal text-gray-400">(optional)</span></label>
+                <input
+                  type="text"
+                  value={projectId}
+                  onChange={(e) => setProjectId(e.target.value)}
+                  placeholder="Optional"
+                  className="w-full text-sm border border-gray-200 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-brand-500"
+                />
+              </div>
+            </>
+          )}
+        </div>
+
+        <div className="px-6 py-4 border-t border-gray-100 flex justify-end gap-3">
+          <button
+            onClick={onClose}
+            className="text-sm px-4 py-2 rounded-lg border border-gray-200 text-gray-600 hover:bg-gray-50 transition-colors"
+          >
+            Cancel
+          </button>
+          <button
+            onClick={handleConnect}
+            disabled={platform.authType === 'apikey' && !apiKey.trim()}
+            className="text-sm px-4 py-2 rounded-lg bg-teal-500 text-white font-semibold hover:bg-teal-600 transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
+          >
+            {platform.authType === 'oauth' ? 'Simulate Connection' : 'Save & Connect'}
+          </button>
+        </div>
+      </div>
+    </div>
+  )
+}
+
+// ── Add Repository modal ─────────────────────────────────────────────────────
+
+interface GithubRepo {
+  id: string
+  url: string
+  name: string
+  paths: string
+}
+
+function AddRepoModal({
+  onClose,
+  onSave,
+}: {
+  onClose: () => void
+  onSave: (repo: GithubRepo) => void
+}) {
+  const [repoUrl, setRepoUrl] = useState('')
+  const [token, setToken] = useState('')
+  const [paths, setPaths] = useState('')
+  const [testState, setTestState] = useState<'idle' | 'testing' | 'ok'>('idle')
+
+  function handleTest() {
+    if (!repoUrl) return
+    setTestState('testing')
+    setTimeout(() => setTestState('ok'), 1200)
+  }
+
+  function handleSave() {
+    if (!repoUrl.trim()) return
+    const name = repoUrl.replace(/^https?:\/\/github\.com\//, '').replace(/\/$/, '') || repoUrl
+    onSave({ id: `repo-${Date.now()}`, url: repoUrl.trim(), name, paths: paths.trim() })
+    onClose()
+  }
+
+  return (
+    <div
+      className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4"
+      role="dialog"
+      aria-modal="true"
+      aria-labelledby="repo-modal-title"
+      onClick={(e) => { if (e.target === e.currentTarget) onClose() }}
+    >
+      <div className="bg-white rounded-2xl shadow-xl w-full max-w-md">
+        <div className="px-6 py-4 border-b border-gray-100 flex items-center justify-between">
+          <h2 id="repo-modal-title" className="text-base font-semibold text-gray-800">Connect GitHub Repository</h2>
+          <button onClick={onClose} className="text-gray-400 hover:text-gray-600 text-xl leading-none" aria-label="Close">×</button>
+        </div>
+
+        <div className="px-6 py-4 space-y-3">
+          <div>
+            <label className="block text-xs font-semibold text-gray-500 mb-1">Repository URL</label>
+            <input
+              type="text"
+              value={repoUrl}
+              onChange={(e) => setRepoUrl(e.target.value)}
+              placeholder="https://github.com/org/repo"
+              className="w-full text-sm border border-gray-200 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-brand-500"
+            />
+          </div>
+          <div>
+            <label className="block text-xs font-semibold text-gray-500 mb-1">Personal Access Token</label>
+            <input
+              type="password"
+              value={token}
+              onChange={(e) => setToken(e.target.value)}
+              placeholder="ghp_..."
+              className="w-full text-sm border border-gray-200 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-brand-500"
+            />
+          </div>
+          <div>
+            <label className="block text-xs font-semibold text-gray-500 mb-1">
+              Monitored paths
+              <span className="font-normal text-gray-400 ml-1">Files that trigger cognitive evaluation on PR</span>
+            </label>
+            <input
+              type="text"
+              value={paths}
+              onChange={(e) => setPaths(e.target.value)}
+              placeholder="prompts/**/*.txt, src/copy/**"
+              className="w-full text-sm border border-gray-200 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-brand-500"
+            />
+          </div>
+          <div className="flex items-center gap-2 pt-1">
+            <button
+              onClick={handleTest}
+              disabled={!repoUrl.trim() || testState === 'testing'}
+              className="text-xs px-3 py-1.5 rounded-lg border border-brand-500 text-brand-600 hover:bg-brand-50 transition-colors disabled:opacity-50 flex items-center gap-1.5"
+            >
+              {testState === 'testing' && <Spinner />}
+              {testState === 'testing' ? 'Testing…' : 'Test Connection'}
+            </button>
+            {testState === 'ok' && <span className="text-xs text-green-600 font-medium">Repository accessible ✓</span>}
+          </div>
+        </div>
+
+        <div className="px-6 py-4 border-t border-gray-100 flex justify-end gap-3">
+          <button
+            onClick={onClose}
+            className="text-sm px-4 py-2 rounded-lg border border-gray-200 text-gray-600 hover:bg-gray-50 transition-colors"
+          >
+            Cancel
+          </button>
+          <button
+            onClick={handleSave}
+            disabled={!repoUrl.trim()}
+            className="text-sm px-4 py-2 rounded-lg bg-teal-500 text-white font-semibold hover:bg-teal-600 transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
+          >
+            Save Repository
+          </button>
+        </div>
+      </div>
+    </div>
+  )
+}
+
+// ── LLM endpoint type ────────────────────────────────────────────────────────
 
 interface LLMEndpoint {
   id: string
@@ -8,28 +431,43 @@ interface LLMEndpoint {
   status: 'connected' | 'error'
 }
 
-interface AnalyticsConnector {
-  id: string
-  name: string
-  initial: string
-  color: string
-  status: 'connected' | 'degraded'
-  writeBack: boolean
-}
-
 const INITIAL_ENDPOINTS: LLMEndpoint[] = [
   { id: 'ep1', name: 'Production GPT-4o', endpoint: 'api.openai.com', status: 'connected' },
 ]
 
-const INITIAL_CONNECTORS: AnalyticsConnector[] = [
-  { id: 'seg', name: 'Segment',   initial: 'S', color: 'bg-green-500',  status: 'connected', writeBack: true  },
-  { id: 'amp', name: 'Amplitude', initial: 'A', color: 'bg-blue-500',   status: 'connected', writeBack: true  },
-  { id: 'mix', name: 'Mixpanel',  initial: 'M', color: 'bg-purple-500', status: 'degraded',  writeBack: false },
-  { id: 'ph',  name: 'PostHog',   initial: 'P', color: 'bg-orange-500', status: 'connected', writeBack: true  },
-  { id: 'ga4', name: 'GA4',       initial: 'G', color: 'bg-yellow-500', status: 'connected', writeBack: false },
-]
-
 export function SettingsView() {
+  const { connectors, updateConnector, thresholds, updateThresholds, addAuditEntry } = useAppContext()
+  const [evalConnected, setEvalConnected] = useState<Record<string, boolean>>({})
+  const [evalModal, setEvalModal] = useState<EvalPlatform | null>(null)
+  const [repos, setRepos] = useState<GithubRepo[]>([])
+  const [repoModalOpen, setRepoModalOpen] = useState(false)
+
+  function handleAddRepo(repo: GithubRepo) {
+    setRepos((prev) => [...prev, repo])
+    addAuditEntry({
+      action_type: 'REPO_CONNECTED',
+      zone: 'ACT_AUTO',
+      outcome: 'success',
+      authorising_human_or_policy: 'user:admin',
+      policy_rule: 'repo_connect_v1',
+    })
+  }
+
+  function handleEvalConnect(platform: EvalPlatform) {
+    setEvalConnected((prev) => ({ ...prev, [platform.id]: true }))
+    addAuditEntry({
+      action_type: 'EVAL_PLATFORM_CONNECTED',
+      zone: 'ACT_AUTO',
+      outcome: 'success',
+      authorising_human_or_policy: 'user:admin',
+      policy_rule: 'eval_platform_connect_v1',
+    })
+  }
+
+  function handleEvalDisconnect(id: string) {
+    setEvalConnected((prev) => ({ ...prev, [id]: false }))
+  }
+
   // LLM Connections
   const [endpoints, setEndpoints] = useState<LLMEndpoint[]>(INITIAL_ENDPOINTS)
   const [epUrl, setEpUrl] = useState('')
@@ -54,23 +492,47 @@ export function SettingsView() {
     setTestState('idle')
   }
 
-  // Analytics Connectors
-  const [connectors, setConnectors] = useState<AnalyticsConnector[]>(INITIAL_CONNECTORS)
+  const [configuringId, setConfiguringId] = useState<string | null>(null)
+  const configuringConnector = connectors.find((c) => c.id === configuringId) ?? null
 
   function toggleWriteBack(id: string) {
-    setConnectors((prev) => prev.map((c) => c.id === id ? { ...c, writeBack: !c.writeBack } : c))
+    const c = connectors.find((c) => c.id === id)
+    if (c) updateConnector(c.name, { writeBack: !c.writeBack })
   }
 
-  // Workspace Thresholds
-  const [thresholds, setThresholds] = useState({ cogLoad: 80, manipRisk: 40, compConf: 50 })
+  // Draft threshold values — kept local until Save is clicked
+  const [draft, setDraft] = useState({
+    cognitiveLoadMax: thresholds.cognitiveLoadMax,
+    manipulationRiskMax: thresholds.manipulationRiskMax,
+    comprehensionConfidenceMin: thresholds.comprehensionConfidenceMin,
+  })
   const [savedMsg, setSavedMsg] = useState(false)
+  const [thresholdError, setThresholdError] = useState('')
+
+  function validateThreshold(v: number) { return v >= 1 && v <= 100 }
 
   function handleSaveThresholds() {
+    if (!validateThreshold(draft.cognitiveLoadMax) ||
+        !validateThreshold(draft.manipulationRiskMax) ||
+        !validateThreshold(draft.comprehensionConfidenceMin)) {
+      setThresholdError('All thresholds must be between 1 and 100.')
+      return
+    }
+    setThresholdError('')
+    updateThresholds(draft)
+    addAuditEntry({
+      action_type: 'THRESHOLD_UPDATE',
+      zone: 'ACT_AUTO',
+      outcome: 'success',
+      authorising_human_or_policy: 'user:admin',
+      policy_rule: 'threshold_update_v1',
+    })
     setSavedMsg(true)
-    setTimeout(() => setSavedMsg(false), 2000)
+    setTimeout(() => setSavedMsg(false), 3000)
   }
 
   return (
+    <>
     <div className="space-y-6">
       <h1 className="text-xl font-bold text-gray-800">Settings</h1>
 
@@ -153,7 +615,10 @@ export function SettingsView() {
                     <span className={`absolute top-0.5 w-3 h-3 rounded-full bg-white shadow transition-transform ${c.writeBack ? 'translate-x-4' : 'translate-x-0.5'}`} />
                   </button>
                 </div>
-                <button className="text-xs px-2 py-1 rounded border border-gray-200 text-gray-500 hover:bg-gray-100 transition-colors">
+                <button
+                  onClick={() => setConfiguringId(c.id)}
+                  className="text-xs px-2 py-1 rounded border border-gray-200 text-gray-500 hover:bg-gray-100 transition-colors"
+                >
                   Configure
                 </button>
               </div>
@@ -165,34 +630,49 @@ export function SettingsView() {
       {/* Section 3: Eval Platform Integrations */}
       <Card title="Eval Platform Integrations">
         <div className="space-y-2">
-          {[
-            { id: 'braintrust', name: 'Braintrust',        subline: 'Cognitive scores appear as first-class scorer columns',      btn: 'Connect via OAuth'   },
-            { id: 'langfuse',   name: 'Langfuse',           subline: 'Scores visible in trace evaluation view',                    btn: 'Connect via OAuth'   },
-            { id: 'wandb',      name: 'Weights & Biases',   subline: 'Cognitive scorer in W&B Weave evaluations',                  btn: 'Connect via API Key' },
-            { id: 'arize',      name: 'Arize Phoenix',      subline: 'Cognitive dimensions in Phoenix eval dashboard',             btn: 'Connect via API Key' },
-          ].map((p) => (
-            <div key={p.id} className="flex items-center gap-3 p-3 rounded-lg border border-gray-100 hover:bg-gray-50 transition-colors">
-              <div className="flex-1 min-w-0">
-                <p className="text-sm font-medium text-gray-700">{p.name}</p>
-                <p className="text-xs text-gray-400">{p.subline}</p>
+          {EVAL_PLATFORMS.map((p) => {
+            const connected = !!evalConnected[p.id]
+            return (
+              <div key={p.id} className="flex items-center gap-3 p-3 rounded-lg border border-gray-100 hover:bg-gray-50 transition-colors">
+                <div className="flex-1 min-w-0">
+                  <p className="text-sm font-medium text-gray-700">{p.name}</p>
+                  <p className="text-xs text-gray-400">{p.subline}</p>
+                </div>
+                <div className="flex items-center gap-3 shrink-0">
+                  {connected ? (
+                    <>
+                      <span className="text-xs font-medium text-green-600">Connected</span>
+                      <button
+                        onClick={() => handleEvalDisconnect(p.id)}
+                        className="text-xs px-3 py-1 rounded-lg border border-danger text-danger hover:bg-red-50 transition-colors"
+                      >
+                        Disconnect
+                      </button>
+                    </>
+                  ) : (
+                    <>
+                      <span className="text-xs text-gray-400">Not connected</span>
+                      <button
+                        onClick={() => setEvalModal(p)}
+                        className="text-xs px-3 py-1 rounded-lg border border-teal-500 text-teal-600 hover:bg-teal-50 transition-colors"
+                      >
+                        {p.authType === 'oauth' ? 'Connect via OAuth' : 'Connect via API Key'}
+                      </button>
+                    </>
+                  )}
+                </div>
               </div>
-              <div className="flex items-center gap-3 shrink-0">
-                <span className="text-xs text-gray-400">Not connected</span>
-                <button className="text-xs px-3 py-1 rounded-lg border border-teal-500 text-teal-600 hover:bg-teal-50 transition-colors">
-                  {p.btn}
-                </button>
-              </div>
-            </div>
-          ))}
+            )
+          })}
         </div>
         <div className="mt-4 bg-gray-50 rounded-lg border border-gray-200 px-4 py-3 text-xs text-gray-500 space-y-1">
           <p className="font-semibold text-gray-600">Cognitive Scorer API endpoint:</p>
           <p className="font-mono text-gray-700">https://api.cognarc.com/v1/score</p>
           <p>Compatible with any platform that supports custom scorers.</p>
           <p className="flex gap-3">
-            <span className="text-brand-500 cursor-pointer hover:underline">OpenAPI spec</span>
-            <span className="text-brand-500 cursor-pointer hover:underline">Python SDK</span>
-            <span className="text-brand-500 cursor-pointer hover:underline">TypeScript SDK</span>
+            <a href="https://github.com/cognarc/cognarc-api" target="_blank" rel="noreferrer" className="text-teal-600 hover:underline">OpenAPI spec</a>
+            <a href="https://github.com/cognarc/cognarc-python" target="_blank" rel="noreferrer" className="text-teal-600 hover:underline">Python SDK</a>
+            <a href="https://github.com/cognarc/cognarc-js" target="_blank" rel="noreferrer" className="text-teal-600 hover:underline">TypeScript SDK</a>
           </p>
         </div>
       </Card>
@@ -204,30 +684,34 @@ export function SettingsView() {
             <label className="block text-xs text-gray-500 mb-1">Cognitive Load Max</label>
             <input
               type="number"
-              value={thresholds.cogLoad}
-              onChange={(e) => setThresholds((t) => ({ ...t, cogLoad: Number(e.target.value) }))}
-              className="w-full text-sm border border-gray-200 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-brand-500"
+              min={1} max={100}
+              value={draft.cognitiveLoadMax}
+              onChange={(e) => setDraft((d) => ({ ...d, cognitiveLoadMax: Number(e.target.value) }))}
+              className={`w-full text-sm border rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-brand-500 ${!validateThreshold(draft.cognitiveLoadMax) ? 'border-danger' : 'border-gray-200'}`}
             />
           </div>
           <div>
             <label className="block text-xs text-gray-500 mb-1">Manipulation Risk Max</label>
             <input
               type="number"
-              value={thresholds.manipRisk}
-              onChange={(e) => setThresholds((t) => ({ ...t, manipRisk: Number(e.target.value) }))}
-              className="w-full text-sm border border-gray-200 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-brand-500"
+              min={1} max={100}
+              value={draft.manipulationRiskMax}
+              onChange={(e) => setDraft((d) => ({ ...d, manipulationRiskMax: Number(e.target.value) }))}
+              className={`w-full text-sm border rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-brand-500 ${!validateThreshold(draft.manipulationRiskMax) ? 'border-danger' : 'border-gray-200'}`}
             />
           </div>
           <div>
             <label className="block text-xs text-gray-500 mb-1">Comprehension Confidence Min</label>
             <input
               type="number"
-              value={thresholds.compConf}
-              onChange={(e) => setThresholds((t) => ({ ...t, compConf: Number(e.target.value) }))}
-              className="w-full text-sm border border-gray-200 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-brand-500"
+              min={1} max={100}
+              value={draft.comprehensionConfidenceMin}
+              onChange={(e) => setDraft((d) => ({ ...d, comprehensionConfidenceMin: Number(e.target.value) }))}
+              className={`w-full text-sm border rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-brand-500 ${!validateThreshold(draft.comprehensionConfidenceMin) ? 'border-danger' : 'border-gray-200'}`}
             />
           </div>
         </div>
+        {thresholdError && <p className="text-xs text-danger mb-3">{thresholdError}</p>}
         <div className="flex items-center gap-3">
           <button
             onClick={handleSaveThresholds}
@@ -235,33 +719,85 @@ export function SettingsView() {
           >
             Save Thresholds
           </button>
-          {savedMsg && <span className="text-xs text-green-600 font-medium">Thresholds saved</span>}
+          {savedMsg && (
+            <span className="text-xs text-green-600 font-medium">
+              ✓ Thresholds saved — changes applied to all connected evaluations
+            </span>
+          )}
         </div>
       </Card>
 
-      {/* Section 4: GitHub / CI/CD */}
+      {/* Section 5: GitHub / CI/CD */}
       <Card
         title="GitHub / CI/CD"
         action={
-          <button className="text-xs px-3 py-1 rounded-lg border border-gray-200 text-gray-500 hover:bg-gray-50 transition-colors">
+          <button
+            onClick={() => setRepoModalOpen(true)}
+            className="text-xs px-3 py-1 rounded-lg border border-gray-200 text-gray-500 hover:bg-gray-50 transition-colors"
+          >
             + Add Repository
           </button>
         }
       >
-        <div className="flex items-center gap-3 p-3 rounded-lg border border-gray-100 bg-gray-50">
-          <svg className="w-5 h-5 text-gray-600 shrink-0" fill="currentColor" viewBox="0 0 24 24">
-            <path d="M12 0C5.37 0 0 5.37 0 12c0 5.31 3.435 9.795 8.205 11.385.6.105.825-.255.825-.57 0-.285-.015-1.23-.015-2.235-3.015.555-3.795-.735-4.035-1.41-.135-.345-.72-1.41-1.23-1.695-.42-.225-1.02-.78-.015-.795.945-.015 1.62.87 1.845 1.23 1.08 1.815 2.805 1.305 3.495.99.105-.78.42-1.305.765-1.605-2.67-.3-5.46-1.335-5.46-5.925 0-1.305.465-2.385 1.23-3.225-.12-.3-.54-1.53.12-3.18 0 0 1.005-.315 3.3 1.23.96-.27 1.98-.405 3-.405s2.04.135 3 .405c2.295-1.56 3.3-1.23 3.3-1.23.66 1.65.24 2.88.12 3.18.765.84 1.23 1.905 1.23 3.225 0 4.605-2.805 5.625-5.475 5.925.435.375.81 1.095.81 2.22 0 1.605-.015 2.895-.015 3.3 0 .315.225.69.825.57A12.02 12.02 0 0024 12c0-6.63-5.37-12-12-12z" />
-          </svg>
-          <div className="flex-1 min-w-0">
-            <p className="text-sm font-medium text-gray-700">cognarc-app</p>
-            <p className="text-xs text-gray-400">github.com/your-org/cognarc-app</p>
+        <div className="space-y-2">
+          {/* Pre-existing repo */}
+          <div className="flex items-center gap-3 p-3 rounded-lg border border-gray-100 bg-gray-50">
+            <svg className="w-5 h-5 text-gray-600 shrink-0" fill="currentColor" viewBox="0 0 24 24">
+              <path d="M12 0C5.37 0 0 5.37 0 12c0 5.31 3.435 9.795 8.205 11.385.6.105.825-.255.825-.57 0-.285-.015-1.23-.015-2.235-3.015.555-3.795-.735-4.035-1.41-.135-.345-.72-1.41-1.23-1.695-.42-.225-1.02-.78-.015-.795.945-.015 1.62.87 1.845 1.23 1.08 1.815 2.805 1.305 3.495.99.105-.78.42-1.305.765-1.605-2.67-.3-5.46-1.335-5.46-5.925 0-1.305.465-2.385 1.23-3.225-.12-.3-.54-1.53.12-3.18 0 0 1.005-.315 3.3 1.23.96-.27 1.98-.405 3-.405s2.04.135 3 .405c2.295-1.56 3.3-1.23 3.3-1.23.66 1.65.24 2.88.12 3.18.765.84 1.23 1.905 1.23 3.225 0 4.605-2.805 5.625-5.475 5.925.435.375.81 1.095.81 2.22 0 1.605-.015 2.895-.015 3.3 0 .315.225.69.825.57A12.02 12.02 0 0024 12c0-6.63-5.37-12-12-12z" />
+            </svg>
+            <div className="flex-1 min-w-0">
+              <p className="text-sm font-medium text-gray-700">cognarc-app</p>
+              <p className="text-xs text-gray-400">github.com/your-org/cognarc-app</p>
+            </div>
+            <span className="flex items-center gap-1 text-xs font-medium text-green-600">
+              <span className="w-1.5 h-1.5 rounded-full bg-green-500" />
+              Connected
+            </span>
           </div>
-          <span className="flex items-center gap-1 text-xs font-medium text-green-600">
-            <span className="w-1.5 h-1.5 rounded-full bg-green-500" />
-            Connected
-          </span>
+
+          {/* Dynamically added repos */}
+          {repos.map((r) => (
+            <div key={r.id} className="flex items-center gap-3 p-3 rounded-lg border border-gray-100 bg-gray-50">
+              <svg className="w-5 h-5 text-gray-600 shrink-0" fill="currentColor" viewBox="0 0 24 24">
+                <path d="M12 0C5.37 0 0 5.37 0 12c0 5.31 3.435 9.795 8.205 11.385.6.105.825-.255.825-.57 0-.285-.015-1.23-.015-2.235-3.015.555-3.795-.735-4.035-1.41-.135-.345-.72-1.41-1.23-1.695-.42-.225-1.02-.78-.015-.795.945-.015 1.62.87 1.845 1.23 1.08 1.815 2.805 1.305 3.495.99.105-.78.42-1.305.765-1.605-2.67-.3-5.46-1.335-5.46-5.925 0-1.305.465-2.385 1.23-3.225-.12-.3-.54-1.53.12-3.18 0 0 1.005-.315 3.3 1.23.96-.27 1.98-.405 3-.405s2.04.135 3 .405c2.295-1.56 3.3-1.23 3.3-1.23.66 1.65.24 2.88.12 3.18.765.84 1.23 1.905 1.23 3.225 0 4.605-2.805 5.625-5.475 5.925.435.375.81 1.095.81 2.22 0 1.605-.015 2.895-.015 3.3 0 .315.225.69.825.57A12.02 12.02 0 0024 12c0-6.63-5.37-12-12-12z" />
+              </svg>
+              <div className="flex-1 min-w-0">
+                <p className="text-sm font-medium text-gray-700 truncate">{r.name}</p>
+                <p className="text-xs text-gray-400 truncate">{r.url}</p>
+                {r.paths && <p className="text-xs text-gray-400 truncate">Paths: {r.paths}</p>}
+              </div>
+              <span className="flex items-center gap-1 text-xs font-medium text-green-600">
+                <span className="w-1.5 h-1.5 rounded-full bg-green-500" />
+                Connected
+              </span>
+            </div>
+          ))}
         </div>
       </Card>
     </div>
+
+      {configuringConnector && (
+        <ConfigureModal
+          connector={configuringConnector}
+          onClose={() => setConfiguringId(null)}
+          onSave={(updates) => updateConnector(configuringConnector.name, updates)}
+        />
+      )}
+
+      {evalModal && (
+        <EvalConnectModal
+          platform={evalModal}
+          onClose={() => setEvalModal(null)}
+          onConnect={() => handleEvalConnect(evalModal)}
+        />
+      )}
+
+      {repoModalOpen && (
+        <AddRepoModal
+          onClose={() => setRepoModalOpen(false)}
+          onSave={handleAddRepo}
+        />
+      )}
+    </>
   )
 }

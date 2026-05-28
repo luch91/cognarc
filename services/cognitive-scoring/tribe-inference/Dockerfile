@@ -24,7 +24,7 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
 
 # Ensure python3 and pip3 point to 3.10
 RUN update-alternatives --install /usr/bin/python3 python3 /usr/bin/python3.10 1 \
-    && update-alternatives --install /usr/bin/python python python3.10 1
+    && update-alternatives --install /usr/bin/python python /usr/bin/python3.10 1
 
 WORKDIR /app
 

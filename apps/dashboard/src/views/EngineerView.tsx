@@ -1,11 +1,11 @@
 import { useRef, useState } from 'react'
 import { useQuery } from '@tanstack/react-query'
 import { useVirtualizer } from '@tanstack/react-virtual'
-import { fetchAuditLog, fetchCicdRuns, fetchPromptBaselines } from '../api/mock.js'
+import { fetchCicdRuns, fetchPromptBaselines } from '../api/mock.js'
 import { Card } from '../components/Card.js'
 import { Spinner } from '../components/Spinner.js'
 import { ZoneBadge } from '../components/ZoneBadge.js'
-import { useKillSwitch } from '../context/KillSwitchContext.js'
+import { useAppContext } from '../context/AppContext.js'
 import type { Zone } from '../api/types.js'
 
 function deltaChip(val: number, invert = false) {
@@ -90,27 +90,13 @@ const ALL_ZONES: Zone[] = ['OBSERVE', 'RECOMMEND', 'ACT_AUTO', 'ACT_GATED']
 export function EngineerView() {
   const { data: baselines, isLoading: blLoading } = useQuery({ queryKey: ['prompt-baselines'], queryFn: fetchPromptBaselines })
   const { data: cicdRuns, isLoading: cicdLoading } = useQuery({ queryKey: ['cicd-runs'], queryFn: fetchCicdRuns })
-  const { data: auditLog, isLoading: auditLoading } = useQuery({ queryKey: ['audit-log'], queryFn: fetchAuditLog })
-  const { extraEntries } = useKillSwitch()
+  const { auditLog, thresholds } = useAppContext()
 
   // Audit log filters
   const [zoneFilter, setZoneFilter] = useState<Zone | 'ALL'>('ALL')
   const [typeFilter, setTypeFilter] = useState('')
 
-  const ksEntries = extraEntries.map((e) => ({
-    id: e.id,
-    timestamp: new Date().toISOString(),
-    workspace_id: 'ws-1',
-    action_type: e.action,
-    zone: e.zone as Zone,
-    policy_rule: 'rule:kill-switch',
-    outcome: e.outcome,
-    authorising_human_or_policy: e.authorisedBy,
-  }))
-
-  const combined = [...ksEntries, ...(auditLog ?? [])]
-
-  const filtered = combined.filter((e) => {
+  const filtered = auditLog.filter((e) => {
     if (zoneFilter !== 'ALL' && e.zone !== zoneFilter) return false
     if (typeFilter && !e.action_type.toLowerCase().includes(typeFilter.toLowerCase())) return false
     return true
@@ -170,6 +156,11 @@ export function EngineerView() {
                 ))}
               </tbody>
             </table>
+            <p className="text-xs text-gray-400 mt-2 pt-2 border-t border-gray-50">
+              Thresholds: CL max <strong className="text-gray-600">{thresholds.cognitiveLoadMax}</strong>
+              {' · '}Manip max <strong className="text-gray-600">{thresholds.manipulationRiskMax}</strong>
+              {' · '}CC min <strong className="text-gray-600">{thresholds.comprehensionConfidenceMin}</strong>
+            </p>
           </div>
         )}
       </Card>
@@ -241,18 +232,15 @@ export function EngineerView() {
           </div>
         }
       >
-        {auditLoading ? (
-          <div className="flex justify-center py-4"><Spinner /></div>
-        ) : (
-          <>
-            {/* Header */}
-            <div className="grid grid-cols-[1fr_80px_120px_120px_80px] text-xs text-gray-400 uppercase tracking-wide border-b border-gray-100 pb-1 mb-1 gap-2">
-              <span>Action</span>
-              <span>Zone</span>
-              <span>Outcome</span>
-              <span>Authorised by</span>
-              <span className="text-right">Time</span>
-            </div>
+        <>
+          {/* Header */}
+          <div className="grid grid-cols-[1fr_80px_120px_120px_80px] text-xs text-gray-400 uppercase tracking-wide border-b border-gray-100 pb-1 mb-1 gap-2">
+            <span>Action</span>
+            <span>Zone</span>
+            <span>Outcome</span>
+            <span>Authorised by</span>
+            <span className="text-right">Time</span>
+          </div>
             {/* Virtualized rows */}
             <div ref={parentRef} className="overflow-y-auto" style={{ height: 360 }} role="log" aria-label="Audit log entries">
               <div style={{ height: virtualizer.getTotalSize(), position: 'relative' }}>
@@ -279,7 +267,6 @@ export function EngineerView() {
               </div>
             </div>
           </>
-        )}
       </Card>
     </div>
   )

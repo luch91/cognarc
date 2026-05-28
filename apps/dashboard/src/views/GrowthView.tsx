@@ -1,13 +1,13 @@
-import { useRef, useState } from 'react'
+import { useRef } from 'react'
 import { useQuery } from '@tanstack/react-query'
 import {
   ResponsiveContainer, LineChart, Line, AreaChart, Area, XAxis, YAxis, Tooltip, Legend, ReferenceLine,
 } from 'recharts'
 import { fetchTrustDrift } from '../api/mock.js'
-import { mockCreativeAssets } from '../api/mock.js'
 import { Card } from '../components/Card.js'
 import { RiskBadge } from '../components/RiskBadge.js'
 import { Spinner } from '../components/Spinner.js'
+import { useAppContext } from '../context/AppContext.js'
 import type { CreativeAsset } from '../api/types.js'
 
 const FUNNEL_STEPS = [
@@ -52,7 +52,7 @@ const VARIANT_SCORES = [
 export function GrowthView() {
   const { data: trustDrift, isLoading: tdLoading } = useQuery({ queryKey: ['trust-drift'], queryFn: fetchTrustDrift })
   const fileInputRef = useRef<HTMLInputElement>(null)
-  const [queue, setQueue] = useState<CreativeAsset[]>(mockCreativeAssets)
+  const { evaluationQueue: queue, addToEvaluationQueue, updateEvaluationItem, addAgentFeedEntry, addManipulationFeedEntry, addActGatedItem } = useAppContext()
 
   const spring = trustDrift?.filter((d) => d.campaign === 'Spring Launch') ?? []
   const retention = trustDrift?.filter((d) => d.campaign === 'Retention Drive') ?? []
@@ -77,18 +77,49 @@ export function GrowthView() {
       risk: 'LOW',
     }
 
-    setQueue((prev) => [newItem, ...prev])
+    addToEvaluationQueue(newItem)
 
     setTimeout(() => {
-      setQueue((prev) => prev.map((a) => a.id === newId ? { ...a, status: 'processing' } : a))
+      updateEvaluationItem(newId, { status: 'processing' })
     }, 2000)
 
     setTimeout(() => {
-      setQueue((prev) => prev.map((a) =>
-        a.id === newId
-          ? { ...a, status: 'complete', cognitive_load: 61, trust: 67, risk: 'MEDIUM' }
-          : a
-      ))
+      const manipulation = 61
+      updateEvaluationItem(newId, { status: 'complete', cognitive_load: 61, trust: 67, risk: 'MEDIUM' })
+
+      if (manipulation > 40) {
+        // Agent Activity Feed entry
+        addAgentFeedEntry({
+          action_type: 'CREATIVE_EVAL',
+          zone: 'RECOMMEND',
+          description: `Manipulation risk ${manipulation}/100 detected in ${file.name} — review recommended.`,
+          status: 'executed',
+        })
+
+        // Safety Manipulation Detection Feed
+        const excerpt = file.name.length > 50
+          ? file.name.slice(0, 50) + '…'
+          : `${file.name} — Creative asset evaluated`
+        addManipulationFeedEntry({
+          category: 'false_urgency',
+          score: manipulation,
+          time: 'just now',
+          excerpt,
+        })
+
+        // Act-Gated item if very high risk
+        if (manipulation > 70) {
+          addActGatedItem({
+            action_type: 'CONTENT_FLAG',
+            description: `${file.name} flagged for manipulation risk ${manipulation}/100`,
+            proposed_action: 'Remove or remediate high-manipulation content before publishing.',
+            alternatives: ['Rewrite with lower urgency language', 'Request human review only', 'Auto-remediate urgency language'],
+            evidence_summary: `Creative asset "${file.name}" scored ${manipulation}/100 on manipulation risk during automated evaluation.`,
+            cognitive_scores: { cognitive_load: 61, comprehension: 67, trust: 55, manipulation_risk: manipulation },
+            status: 'pending',
+          })
+        }
+      }
     }, 5000)
   }
 

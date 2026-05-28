@@ -1,9 +1,8 @@
 import { useState } from 'react'
-import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
-import { approveActGated, fetchActGatedItems, rejectActGated } from '../api/mock.js'
 import { Card } from '../components/Card.js'
 import { ScoreGauge } from '../components/ScoreGauge.js'
 import { Spinner } from '../components/Spinner.js'
+import { useAppContext } from '../context/AppContext.js'
 import type { ActGatedItem } from '../api/types.js'
 
 const STATUS_BADGE: Record<string, string> = {
@@ -33,16 +32,17 @@ function DecisionModal({
   onClose: () => void
 }) {
   const [justification, setJustification] = useState('')
-  const qc = useQueryClient()
+  const [saving, setSaving] = useState(false)
+  const { resolveActGatedItem } = useAppContext()
 
-  const mutation = useMutation({
-    mutationFn: () =>
-      mode === 'approve' ? approveActGated(item.id, justification) : rejectActGated(item.id, justification),
-    onSuccess: () => {
-      qc.invalidateQueries({ queryKey: ['act-gated'] })
+  function handleConfirm() {
+    if (!justification.trim()) return
+    setSaving(true)
+    setTimeout(() => {
+      resolveActGatedItem(item.id, mode === 'approve' ? 'approved' : 'rejected')
       onClose()
-    },
-  })
+    }, 400)
+  }
 
   return (
     <div
@@ -83,13 +83,13 @@ function DecisionModal({
             Cancel
           </button>
           <button
-            onClick={() => mutation.mutate()}
-            disabled={!justification.trim() || mutation.isPending}
+            onClick={handleConfirm}
+            disabled={!justification.trim() || saving}
             className={`text-sm px-4 py-2 rounded-lg font-semibold text-white transition-colors disabled:opacity-50 ${
               mode === 'approve' ? 'bg-success hover:bg-green-600' : 'bg-danger hover:bg-red-600'
             }`}
           >
-            {mutation.isPending ? 'Saving…' : mode === 'approve' ? 'Approve' : 'Reject'}
+            {saving ? 'Saving…' : mode === 'approve' ? 'Approve' : 'Reject'}
           </button>
         </div>
       </div>
@@ -227,10 +227,10 @@ function ActGatedCard({ item }: { item: ActGatedItem }) {
 }
 
 export function ApprovalsView() {
-  const { data: items, isLoading } = useQuery({ queryKey: ['act-gated'], queryFn: fetchActGatedItems, refetchInterval: 15000 })
+  const { actGatedQueue } = useAppContext()
 
-  const pending = items?.filter((i) => i.status === 'pending') ?? []
-  const resolved = items?.filter((i) => i.status !== 'pending') ?? []
+  const pending = actGatedQueue.filter((i) => i.status === 'pending')
+  const resolved = actGatedQueue.filter((i) => i.status !== 'pending')
 
   return (
     <div className="space-y-6">
@@ -243,15 +243,12 @@ export function ApprovalsView() {
         )}
       </div>
 
-      {isLoading ? (
-        <div className="flex justify-center py-12"><Spinner size={8} /></div>
-      ) : (
-        <>
-          {/* Pending approvals */}
-          {pending.length > 0 ? (
-            <div className="space-y-3">
-              <h2 className="text-sm font-semibold text-gray-500 uppercase tracking-wide">Pending Approval</h2>
-              {pending.map((item) => <ActGatedCard key={item.id} item={item} />)}
+      <>
+        {/* Pending approvals */}
+        {pending.length > 0 ? (
+          <div className="space-y-3">
+            <h2 className="text-sm font-semibold text-gray-500 uppercase tracking-wide">Pending Approval</h2>
+            {pending.map((item) => <ActGatedCard key={item.id} item={item} />)}
             </div>
           ) : (
             <div className="flex flex-col items-center justify-center py-12 text-gray-400 border-2 border-dashed border-gray-200 rounded-xl">
@@ -260,15 +257,14 @@ export function ApprovalsView() {
             </div>
           )}
 
-          {/* Resolved */}
-          {resolved.length > 0 && (
-            <div className="space-y-3">
-              <h2 className="text-sm font-semibold text-gray-500 uppercase tracking-wide">Recently Resolved</h2>
-              {resolved.map((item) => <ActGatedCard key={item.id} item={item} />)}
-            </div>
-          )}
-        </>
-      )}
+        {/* Resolved */}
+        {resolved.length > 0 && (
+          <div className="space-y-3">
+            <h2 className="text-sm font-semibold text-gray-500 uppercase tracking-wide">Recently Resolved</h2>
+            {resolved.map((item) => <ActGatedCard key={item.id} item={item} />)}
+          </div>
+        )}
+      </>
     </div>
   )
 }

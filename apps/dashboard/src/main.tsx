@@ -4,6 +4,7 @@ import { BrowserRouter } from 'react-router-dom'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { RoleProvider } from './context/RoleContext.js'
 import { KillSwitchProvider } from './context/KillSwitchContext.js'
+import { AppProvider } from './context/AppContext.js'
 import { App } from './App.js'
 import './styles/globals.css'
 
@@ -25,7 +26,9 @@ createRoot(root).render(
       <BrowserRouter>
         <RoleProvider>
           <KillSwitchProvider>
-            <App />
+            <AppProvider>
+              <App />
+            </AppProvider>
           </KillSwitchProvider>
         </RoleProvider>
       </BrowserRouter>

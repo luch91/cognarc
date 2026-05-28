@@ -61,7 +61,7 @@ export function Layout() {
         {/* Kill Switch banner */}
         {banner && (
           <div className="flex items-center justify-between px-6 py-2 bg-amber-50 border-b border-amber-200 text-amber-800 text-sm font-medium">
-            <span>⚠ Agent actions paused — monitoring continues</span>
+            <span>⚠ Agent actions paused — monitoring continues. Kill switch is active.</span>
             <button
               onClick={() => setBanner(false)}
               className="ml-4 text-amber-600 hover:text-amber-800 font-bold leading-none"

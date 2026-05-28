@@ -1,14 +1,23 @@
-import { useState } from 'react'
 import { useQuery } from '@tanstack/react-query'
+import { useNavigate } from 'react-router-dom'
 import {
   ResponsiveContainer, LineChart, Line, XAxis, YAxis, Tooltip, Legend,
 } from 'recharts'
-import { fetchAgentActivity, fetchHealthTrend, fetchSurfaces } from '../api/mock.js'
+import { fetchHealthTrend, fetchSurfaces } from '../api/mock.js'
 import { Card } from '../components/Card.js'
 import { OnboardingBanner } from '../components/OnboardingBanner.js'
 import { ScoreGauge } from '../components/ScoreGauge.js'
 import { Spinner } from '../components/Spinner.js'
 import { ZoneBadge } from '../components/ZoneBadge.js'
+import { useAppContext } from '../context/AppContext.js'
+
+const BUYER_SURFACES = [
+  { label: 'Eng',    active: true  },
+  { label: 'PM',     active: true  },
+  { label: 'Growth', active: true  },
+  { label: 'Design', active: true  },
+  { label: 'Safety', active: false },
+]
 
 function timeAgo(iso: string) {
   const diff = Math.floor((Date.now() - new Date(iso).getTime()) / 1000)
@@ -25,12 +34,12 @@ const STATUS_DOT: Record<string, string> = {
 
 export function WorkspaceOverview() {
   const { data: trend, isLoading: trendLoading } = useQuery({ queryKey: ['health-trend'], queryFn: fetchHealthTrend })
-  const { data: activity, isLoading: actLoading } = useQuery({ queryKey: ['agent-activity'], queryFn: fetchAgentActivity, refetchInterval: 30000 })
   const { data: surfaces, isLoading: surfLoading } = useQuery({ queryKey: ['surfaces'], queryFn: fetchSurfaces })
-  const [hasConnectedEndpoint, setHasConnectedEndpoint] = useState(false)
+  const { agentFeed, hasConnectedEndpoint, setHasConnectedEndpoint } = useAppContext()
+  const navigate = useNavigate()
 
   const latest = trend?.[trend.length - 1]
-  const pendingGated = activity?.filter((a) => a.zone === 'ACT_GATED' && a.status === 'pending') ?? []
+  const pendingGated = agentFeed.filter((a) => a.zone === 'ACT_GATED' && a.status === 'pending')
 
   return (
     <div className="space-y-6">
@@ -86,24 +95,20 @@ export function WorkspaceOverview() {
             ) : undefined
           }
         >
-          {actLoading ? (
-            <div className="flex justify-center py-4"><Spinner /></div>
-          ) : (
-            <ul className="space-y-3" role="list" aria-label="Agent activity">
-              {activity?.map((item) => (
-                <li key={item.id} className="flex items-start gap-3">
-                  <ZoneBadge zone={item.zone} />
-                  <div className="flex-1 min-w-0">
-                    <p className="text-sm text-gray-700 truncate">{item.description}</p>
-                    <p className="text-xs text-gray-400">{timeAgo(item.timestamp)}</p>
-                  </div>
-                  {item.status === 'pending' && (
-                    <span className="text-xs text-orange-600 font-semibold animate-pulse shrink-0">PENDING</span>
-                  )}
-                </li>
-              ))}
-            </ul>
-          )}
+          <ul className="space-y-3" role="list" aria-label="Agent activity">
+            {agentFeed.map((item) => (
+              <li key={item.id} data-testid="agent-feed-item" className="flex items-start gap-3">
+                <ZoneBadge zone={item.zone} />
+                <div className="flex-1 min-w-0">
+                  <p className="text-sm text-gray-700 truncate">{item.description}</p>
+                  <p className="text-xs text-gray-400">{timeAgo(item.timestamp)}</p>
+                </div>
+                {item.status === 'pending' && (
+                  <span className="text-xs text-orange-600 font-semibold animate-pulse shrink-0">PENDING</span>
+                )}
+              </li>
+            ))}
+          </ul>
         </Card>
 
         {/* Connected surfaces */}
@@ -111,18 +116,50 @@ export function WorkspaceOverview() {
           {surfLoading ? (
             <div className="flex justify-center py-4"><Spinner /></div>
           ) : (
-            <ul className="space-y-3" role="list" aria-label="Connected surfaces">
-              {surfaces?.map((s) => (
-                <li key={s.id} className="flex items-center gap-3">
-                  <span className={`w-2.5 h-2.5 rounded-full shrink-0 ${STATUS_DOT[s.status]}`} aria-label={s.status} />
-                  <div className="flex-1">
-                    <p className="text-sm font-medium text-gray-700">{s.name}</p>
-                    <p className="text-xs text-gray-400">{s.type} · {timeAgo(s.last_seen)}</p>
-                  </div>
-                  <span className="text-xs text-gray-400 capitalize">{s.status}</span>
-                </li>
-              ))}
-            </ul>
+            <div className="flex flex-col gap-3">
+              {/* Scrollable surface list — max-height prevents truncation */}
+              <ul
+                className="space-y-3 max-h-64 overflow-y-auto pr-1"
+                role="list"
+                aria-label="Connected surfaces"
+              >
+                {surfaces?.map((s) => (
+                  <li key={s.id} className="flex items-center gap-3">
+                    <span className={`w-2.5 h-2.5 rounded-full shrink-0 ${STATUS_DOT[s.status]}`} aria-label={s.status} />
+                    <div className="flex-1">
+                      <p className="text-sm font-medium text-gray-700">{s.name}</p>
+                      <p className="text-xs text-gray-400">{s.type} · {timeAgo(s.last_seen)}</p>
+                    </div>
+                    <span className="text-xs text-gray-400 capitalize">{s.status}</span>
+                  </li>
+                ))}
+              </ul>
+
+              {/* Buyer surface activity indicators */}
+              <div className="pt-2 border-t border-gray-100">
+                <p className="text-[10px] text-gray-400 uppercase tracking-wide mb-1.5">Active surfaces — last 30 days</p>
+                <div className="flex flex-wrap gap-1.5">
+                  {BUYER_SURFACES.map((s) => (
+                    <span
+                      key={s.label}
+                      className={`px-2.5 py-0.5 rounded-full text-xs font-semibold ${
+                        s.active ? 'bg-teal-100 text-teal-700' : 'bg-gray-100 text-gray-400'
+                      }`}
+                    >
+                      {s.label}
+                    </span>
+                  ))}
+                </div>
+              </div>
+
+              {/* Add Surface button — always visible below list */}
+              <button
+                onClick={() => navigate('/settings')}
+                className="mt-1 w-full text-xs border border-dashed border-gray-300 text-gray-500 hover:border-brand-400 hover:text-brand-600 rounded-lg py-2 transition-colors focus:outline-none focus:ring-2 focus:ring-brand-500"
+              >
+                + Add Surface
+              </button>
+            </div>
           )}
         </Card>
       </div>

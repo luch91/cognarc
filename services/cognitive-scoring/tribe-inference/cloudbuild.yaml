@@ -17,7 +17,7 @@ substitutions:
   _REGION: us-central1
   _REPO_NAME: cognarc
   _SERVICE_NAME: tribe-inference
-  _IMAGE_TAG: $COMMIT_SHA
+  _IMAGE_TAG: latest
 
 options:
   # Machine type: E2_HIGHCPU_8 has enough RAM to download + layer the 8 GB image.

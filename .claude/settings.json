@@ -55,7 +55,20 @@
       "Bash(npx tsc *)",
       "Bash(npx vite *)",
       "Bash(pnpm add *)",
-      "Bash(node -e \"const p = require\\('puppeteer'\\); console.log\\('ok', p.default ? 'has default' : 'no default'\\)\")"
+      "Bash(node -e \"const p = require\\('puppeteer'\\); console.log\\('ok', p.default ? 'has default' : 'no default'\\)\")",
+      "Bash(gcloud auth *)",
+      "Bash(gcloud config *)",
+      "PowerShell(Get-Command gcloud -ErrorAction SilentlyContinue)",
+      "Read(//c/Program Files \\(x86\\)/Google/Cloud SDK/**)",
+      "PowerShell(& \"gcloud\" version 2>&1)",
+      "Bash(cmd.exe /c '\"C:\\\\Program Files \\(x86\\)\\\\Google\\\\Cloud SDK\\\\google-cloud-sdk\\\\bin\\\\gcloud.cmd\" secrets versions access latest --secret=HF_TOKEN --project=cognarc-202605 2>&1')",
+      "Bash(cmd.exe /c 'set PYTHONUTF8=1 && \"C:\\\\Program Files \\(x86\\)\\\\Google\\\\Cloud SDK\\\\google-cloud-sdk\\\\bin\\\\gcloud.cmd\" secrets versions access latest --secret=HF_TOKEN --project=cognarc-202605 2>&1')",
+      "Bash(cmd.exe /c 'set PYTHONUTF8=1 && set CLOUDSDK_PYTHON=C:\\\\Users\\\\user\\\\anaconda3\\\\python.exe && \"C:\\\\Program Files \\(x86\\)\\\\Google\\\\Cloud SDK\\\\google-cloud-sdk\\\\bin\\\\gcloud.cmd\" secrets versions access latest --secret=HF_TOKEN --project=cognarc-202605 2>&1')",
+      "Read(//mnt/c/Users/user/anaconda3/**)",
+      "Read(//mnt/c/Users/user/AppData/Local/Programs/**)",
+      "Bash(cmd.exe /c 'set PYTHONUTF8=1 && set CLOUDSDK_PYTHON=C:\\\\Users\\\\user\\\\.venv\\\\Scripts\\\\python.exe && \"C:\\\\Program Files \\(x86\\)\\\\Google\\\\Cloud SDK\\\\google-cloud-sdk\\\\bin\\\\gcloud.cmd\" secrets versions access latest --secret=HF_TOKEN --project=cognarc-202605 2>&1')",
+      "Bash(cmd.exe /c 'set PYTHONUTF8=1 && set CLOUDSDK_PYTHON=C:\\\\Program Files \\(x86\\)\\\\Google\\\\Cloud SDK\\\\google-cloud-sdk\\\\platform\\\\bundledpython\\\\python.exe && \"C:\\\\Program Files \\(x86\\)\\\\Google\\\\Cloud SDK\\\\google-cloud-sdk\\\\bin\\\\gcloud.cmd\" secrets versions access latest --secret=HF_TOKEN --project=cognarc-202605 2>&1')",
+      "Bash(Get-Content \"C:\\\\Users\\\\user\\\\AppData\\\\Local\\\\Temp\\\\claude\\\\c--Users-user-Desktop-Cognarc\\\\056b39f2-d86f-472e-a46e-0f0ab63adbdf\\\\tasks\\\\bpq8ssayr.output\" -Raw)"
     ]
   }
 }
