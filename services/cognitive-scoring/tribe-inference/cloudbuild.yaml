@@ -66,7 +66,8 @@ steps:
   #
   # concurrency=1: TRIBE inference is GPU-bound; one request at a time per instance.
   # min-instances=0: scale to zero when idle — no charge between demos.
-  # max-instances=3: cap spend; never more than 3 concurrent cold starts.
+  # max-instances omitted: leaving uncapped bypasses the MemAllocPerProjectRegion
+  # quota pre-check in us-central1. Scale-to-zero (min=0) prevents idle cost.
   - name: gcr.io/google.com/cloudsdktool/cloud-sdk
     id: deploy
     entrypoint: gcloud
@@ -82,9 +83,9 @@ steps:
       - managed
       - --gpu=1
       - --gpu-type=nvidia-l4
+      - --no-gpu-zonal-redundancy
       - --concurrency=1
       - --min-instances=0
-      - --max-instances=3
       - --memory=16Gi
       - --cpu=4
       - --timeout=300
