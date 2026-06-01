@@ -94,7 +94,9 @@ COPY server.py .
 ENV PORT=8080
 EXPOSE 8080
 
-RUN useradd -m -u 1000 appuser && chown -R appuser /app
+RUN useradd -m -u 1000 appuser \
+    && chown -R appuser /app \
+    && chown -R appuser /hf_cache
 USER appuser
 
 CMD ["python3", "-m", "uvicorn", "server:app", "--host", "0.0.0.0", "--port", "8080"]
