@@ -72,6 +72,10 @@ RUN pip3 install --no-cache-dir \
 # Download spacy English model.
 RUN python3 -m spacy download en_core_web_sm
 
+# Install uv/uvx — tribev2 uses uvx to invoke whisperx for audio transcription.
+# Install to /usr/local/bin so it's on PATH for all users including appuser.
+RUN curl -LsSf https://astral.sh/uv/install.sh | UV_INSTALL_DIR=/usr/local/bin sh
+
 # Pre-download model weights into /hf_cache (world-readable, set above).
 # token passed via env var to avoid shell interpolation issues.
 ARG HF_TOKEN
