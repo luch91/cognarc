@@ -67,7 +67,8 @@ RUN pip3 install --no-cache-dir \
     "julius" \
     "spacy" \
     "moviepy>=2.2.1" \
-    "transformers"
+    "transformers" \
+    "edge-tts"
 
 # Download spacy English model.
 RUN python3 -m spacy download en_core_web_sm

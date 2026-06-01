@@ -100,19 +100,23 @@ def run_inference(req: PredictRequest) -> tuple[list[float], str]:
 
     try:
         if req.stimulus_type == "text":
-            # TribeModel expects a text file path or inline text via events dataframe.
-            # For text inputs we write to a temp file then call get_events_dataframe.
-            import tempfile, pathlib
+            # Convert text → audio using edge-tts (local, no external API, no rate limits).
+            # Then pass the audio file to get_events_dataframe(audio_path=...) which
+            # bypasses tribev2's gTTS TextToEvents path entirely.
+            import tempfile, pathlib, asyncio, edge_tts  # type: ignore
 
             with tempfile.NamedTemporaryFile(
-                mode="w", suffix=".txt", delete=False, encoding="utf-8"
+                suffix=".mp3", delete=False
             ) as f:
-                f.write(req.content)
-                text_path = pathlib.Path(f.name)
+                audio_path = pathlib.Path(f.name)
 
-            df = tribe_model.get_events_dataframe(text_path=text_path)  # type: ignore[union-attr]
+            communicate = edge_tts.Communicate(req.content, voice="en-US-AriaNeural")
+            asyncio.get_event_loop().run_until_complete(communicate.save(str(audio_path)))
+            logger.info(f"Generated TTS audio via edge-tts: {audio_path}")
+
+            df = tribe_model.get_events_dataframe(audio_path=str(audio_path))  # type: ignore[union-attr]
             preds, _ = tribe_model.predict(events=df)  # type: ignore[union-attr]
-            text_path.unlink(missing_ok=True)
+            audio_path.unlink(missing_ok=True)
 
             # preds shape: (n_timesteps, n_vertices) — take mean over time
             activations = np.mean(preds, axis=0).astype(np.float32)
