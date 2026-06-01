@@ -38,25 +38,15 @@ tribe_model = None
 def load_model() -> None:
     global tribe_model
 
-    # Set offline mode so huggingface_hub skips all network calls — files are
-    # already in the local HF cache from the initial download.
-    os.environ.setdefault("HF_HUB_OFFLINE", "1")
-
     logger.info(f"Loading {MODEL_ID} via TribeModel.from_pretrained()…")
     try:
         from tribev2 import TribeModel  # type: ignore
-        import pathlib, shutil
+        import pathlib
+        from huggingface_hub import hf_hub_download
 
-        # tribev2's from_pretrained does Path(checkpoint_dir) which converts
-        # "facebook/tribev2" → "facebook\tribev2" on Windows, breaking the HF
-        # repo ID. Use the local HF cache snapshot directly instead.
-        HF_CACHE = pathlib.Path.home() / ".cache/huggingface/hub"
-        snapshot_dir = (
-            HF_CACHE
-            / "models--facebook--tribev2"
-            / "snapshots"
-            / "f894e783020944dcd96e5568550afe2aa9743f9f"
-        )
+        # Use hf_hub_download to resolve the correct cached file paths — this
+        # works regardless of snapshot hash or cache location, and respects
+        # HF_HUB_OFFLINE=1 (set by Cloud Run env var) for no-network operation.
         local_ckpt_dir = pathlib.Path("./hf_model/facebook_tribev2").resolve()
         local_ckpt_dir.mkdir(parents=True, exist_ok=True)
 
@@ -64,37 +54,16 @@ def load_model() -> None:
         ckpt_path = local_ckpt_dir / "best.ckpt"
 
         if not config_path.exists():
-            src = snapshot_dir / "config.yaml"
-            if src.exists():
-                shutil.copy(src, config_path)
-                logger.info("Copied config.yaml from HF cache")
-            else:
-                raise FileNotFoundError(f"config.yaml not found in HF cache at {src}")
+            cached = hf_hub_download(repo_id=MODEL_ID, filename="config.yaml")
+            import shutil
+            shutil.copy(cached, config_path)
+            logger.info(f"Copied config.yaml from {cached}")
 
         if not ckpt_path.exists():
-            src = snapshot_dir / "best.ckpt"
-            if src.exists():
-                shutil.copy(src, ckpt_path)
-                logger.info("Copied best.ckpt from HF cache")
-            else:
-                raise FileNotFoundError(f"best.ckpt not found in HF cache at {src}")
-
-        # config.yaml uses !!python/object/apply:pathlib.PosixPath which can't be
-        # instantiated on Windows. Register a custom YAML constructor that joins
-        # path parts into a plain string instead of a PosixPath object.
-        import yaml as _yaml
-
-        def _posixpath_constructor(loader: _yaml.UnsafeLoader, node: _yaml.Node) -> str:
-            if isinstance(node, _yaml.SequenceNode):
-                parts = loader.construct_sequence(node)
-                return "/".join(str(p) for p in parts if p)
-            return str(loader.construct_scalar(node))  # type: ignore[arg-type]
-
-        _yaml.UnsafeLoader.add_constructor(
-            "tag:yaml.org,2002:python/object/apply:pathlib.PosixPath",
-            _posixpath_constructor,
-        )
-        logger.info("Registered Windows-compatible PosixPath YAML constructor")
+            cached = hf_hub_download(repo_id=MODEL_ID, filename="best.ckpt")
+            import shutil
+            shutil.copy(cached, ckpt_path)
+            logger.info(f"Copied best.ckpt from {cached}")
 
         tribe_model = TribeModel.from_pretrained(local_ckpt_dir, cache_folder="./cache")
         logger.info("TRIBE v2 loaded successfully")
