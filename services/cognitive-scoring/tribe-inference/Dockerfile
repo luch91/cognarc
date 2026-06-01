@@ -4,6 +4,11 @@ FROM nvidia/cuda:12.4.1-runtime-ubuntu22.04
 
 ENV DEBIAN_FRONTEND=noninteractive
 
+# Use a fixed, world-readable cache dir so model weights downloaded during build
+# are accessible when the container runs as appuser (not root).
+ENV HF_HOME=/hf_cache
+RUN mkdir -p /hf_cache && chmod 777 /hf_cache
+
 # System deps: Python 3.11 (tribev2 requires >=3.11), ffmpeg, git, build tools.
 RUN apt-get update && apt-get install -y --no-install-recommends \
     python3.11 \
@@ -32,13 +37,12 @@ RUN pip3 install --no-cache-dir \
     --index-url https://download.pytorch.org/whl/cu124
 
 # Install tribev2 from GitHub with all its dependencies.
-# NOT --no-deps this time — let pip resolve spacy, julius, transformers, moviepy, etc.
 RUN pip3 install --no-cache-dir \
     "git+https://github.com/facebookresearch/tribev2.git" \
     "neuralset==0.0.2" \
     "neuraltrain==0.0.2"
 
-# Install tribev2 optional extras needed for inference + our server.
+# Install tribev2 optional extras + server deps.
 RUN pip3 install --no-cache-dir \
     "fastapi>=0.110.0" \
     "uvicorn[standard]>=0.29.0" \
@@ -65,13 +69,12 @@ RUN pip3 install --no-cache-dir \
     "moviepy>=2.2.1" \
     "transformers"
 
-# Download spacy English model needed by tribev2 text pipeline.
+# Download spacy English model.
 RUN python3 -m spacy download en_core_web_sm
 
-# Pre-download model weights during build so cold starts are fast.
-# HF_TOKEN must have access to facebook/tribev2 on HuggingFace.
+# Pre-download model weights into /hf_cache (world-readable, set above).
+# token passed via env var to avoid shell interpolation issues.
 ARG HF_TOKEN
-# Pass token via environment variable — avoids shell interpolation breaking special chars.
 ENV HF_TOKEN_BUILD=${HF_TOKEN}
 RUN if [ -n "$HF_TOKEN_BUILD" ]; then \
     HF_TOKEN="$HF_TOKEN_BUILD" python3 -c "\
@@ -80,10 +83,10 @@ from huggingface_hub import hf_hub_download, login; \
 login(token=os.environ['HF_TOKEN']); \
 hf_hub_download('facebook/tribev2', 'config.yaml'); \
 hf_hub_download('facebook/tribev2', 'best.ckpt'); \
-print('Model weights cached successfully'); \
+print('Model weights cached to /hf_cache — done'); \
 "; \
 else \
-    echo "WARNING: HF_TOKEN not set — model will be downloaded at first request"; \
+    echo "WARNING: HF_TOKEN not set — model will download at first request"; \
 fi
 
 COPY server.py .
@@ -91,7 +94,7 @@ COPY server.py .
 ENV PORT=8080
 EXPOSE 8080
 
-RUN useradd -m -u 1000 appuser && chown -R appuser /app /root/.cache 2>/dev/null || true
+RUN useradd -m -u 1000 appuser && chown -R appuser /app
 USER appuser
 
 CMD ["python3", "-m", "uvicorn", "server:app", "--host", "0.0.0.0", "--port", "8080"]
