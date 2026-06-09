@@ -40,7 +40,8 @@ RUN pip3 install --no-cache-dir \
 RUN pip3 install --no-cache-dir \
     "git+https://github.com/facebookresearch/tribev2.git" \
     "neuralset==0.0.2" \
-    "neuraltrain==0.0.2"
+    "neuraltrain==0.0.2" \
+    "exca==0.5.20"
 
 # Install tribev2 optional extras + server deps.
 RUN pip3 install --no-cache-dir \
