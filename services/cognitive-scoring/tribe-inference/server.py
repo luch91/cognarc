@@ -111,7 +111,7 @@ def run_inference(req: PredictRequest) -> tuple[list[float], str]:
                 audio_path = pathlib.Path(f.name)
 
             communicate = edge_tts.Communicate(req.content, voice="en-US-AriaNeural")
-            asyncio.get_event_loop().run_until_complete(communicate.save(str(audio_path)))
+            asyncio.run(communicate.save(str(audio_path)))
             logger.info(f"Generated TTS audio via edge-tts: {audio_path}")
 
             df = tribe_model.get_events_dataframe(audio_path=str(audio_path))  # type: ignore[union-attr]
