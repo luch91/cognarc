@@ -1,0 +1,23 @@
+# Exclude everything except what's needed for the tribe-inference Docker build
+.git
+node_modules
+apps
+packages
+tests
+infrastructure
+config
+docs
+*.md
+pnpm-lock.yaml
+turbo.json
+services/behavioral-sdk
+services/analytics-connectors
+services/guardrail-engine
+services/trust-gradient
+services/api-gateway
+services/cognitive-scoring/src
+services/cognitive-scoring/node_modules
+services/cognitive-scoring/tribe-inference/__pycache__
+services/cognitive-scoring/tribe-inference/hf_model
+services/cognitive-scoring/tribe-inference/cache
+services/cognitive-scoring/tribe-inference/ffmpeg.exe
