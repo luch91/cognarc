@@ -24,20 +24,21 @@ availableSecrets:
 
 steps:
   # Step 1 — Build the Docker image, injecting HF_TOKEN from Secret Manager.
+  # secretEnv exposes HF_TOKEN as a real shell env var in this step.
+  # We use bash -c so the shell expands $HF_TOKEN before passing to docker.
   - name: gcr.io/cloud-builders/docker
     id: build
     secretEnv: [HF_TOKEN]
+    entrypoint: bash
     args:
-      - build
-      - --build-arg
-      - HF_TOKEN=$$HF_TOKEN
-      - --tag
-      - $_REGION-docker.pkg.dev/$PROJECT_ID/$_REPO_NAME/$_SERVICE_NAME:$_IMAGE_TAG
-      - --tag
-      - $_REGION-docker.pkg.dev/$PROJECT_ID/$_REPO_NAME/$_SERVICE_NAME:latest
-      - --file
-      - services/cognitive-scoring/tribe-inference/Dockerfile
-      - services/cognitive-scoring/tribe-inference
+      - -c
+      - |
+        docker build \
+          --build-arg HF_TOKEN="$HF_TOKEN" \
+          --tag $_REGION-docker.pkg.dev/$PROJECT_ID/$_REPO_NAME/$_SERVICE_NAME:$_IMAGE_TAG \
+          --tag $_REGION-docker.pkg.dev/$PROJECT_ID/$_REPO_NAME/$_SERVICE_NAME:latest \
+          --file services/cognitive-scoring/tribe-inference/Dockerfile \
+          services/cognitive-scoring/tribe-inference
 
   # Step 2 — Push both tags to Artifact Registry.
   - name: gcr.io/cloud-builders/docker
