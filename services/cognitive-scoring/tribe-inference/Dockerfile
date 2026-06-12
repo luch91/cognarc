@@ -88,7 +88,7 @@ import os, sys; \
 token = sys.argv[1]; \
 from huggingface_hub import hf_hub_download; \
 from huggingface_hub import login; \
-login(token=token, new_session=False); \
+login(token=token); \
 hf_hub_download('facebook/tribev2', 'config.yaml'); \
 hf_hub_download('facebook/tribev2', 'best.ckpt'); \
 print('Model weights cached to /hf_cache — done'); \
