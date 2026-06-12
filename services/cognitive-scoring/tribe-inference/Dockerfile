@@ -79,18 +79,20 @@ RUN python3 -m spacy download en_core_web_sm
 RUN curl -LsSf https://astral.sh/uv/install.sh | UV_INSTALL_DIR=/usr/local/bin sh
 
 # Pre-download model weights into /hf_cache (world-readable, set above).
-# token passed via env var to avoid shell interpolation issues.
+# ARG is build-time only — never persisted as ENV to avoid conflicts with
+# huggingface_hub reading HF_TOKEN from the image environment at runtime.
 ARG HF_TOKEN
-ENV HF_TOKEN_BUILD=${HF_TOKEN}
-RUN if [ -n "$HF_TOKEN_BUILD" ]; then \
-    HF_TOKEN="$HF_TOKEN_BUILD" python3 -c "\
-import os; \
-from huggingface_hub import hf_hub_download, login; \
-login(token=os.environ['HF_TOKEN']); \
+RUN if [ -n "$HF_TOKEN" ]; then \
+    python3 -c "\
+import os, sys; \
+token = sys.argv[1]; \
+from huggingface_hub import hf_hub_download; \
+from huggingface_hub import login; \
+login(token=token, new_session=False); \
 hf_hub_download('facebook/tribev2', 'config.yaml'); \
 hf_hub_download('facebook/tribev2', 'best.ckpt'); \
 print('Model weights cached to /hf_cache — done'); \
-"; \
+" "$HF_TOKEN"; \
 else \
     echo "WARNING: HF_TOKEN not set — model will download at first request"; \
 fi
