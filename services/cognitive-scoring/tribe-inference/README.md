@@ -1,89 +1,151 @@
-# TRIBE v2 Local Inference Server
+# TRIBE v2 Inference Server
 
-Runs the `facebook/tribev2` model locally for development and integration testing.
-For production, use the GCP Cloud Run deployment from P-005.
+Runs `facebook/tribev2` — the tri-modal brain encoding model — serving cortical activation predictions over HTTP.
+
+Two deployment targets:
+- **Local** (`tribe-local`): run directly with uvicorn for development
+- **GCP Cloud Run** (`tribe-gcp`): deployed at `https://tribe-inference-l4kyolfkla-uc.a.run.app` (NVIDIA L4, scale-to-zero)
+
+---
 
 ## Prerequisites
 
-1. **Python 3.10+** with pip
-2. **HuggingFace account** — [sign up free](https://huggingface.co/join)
-3. **LLaMA 3.2 gated model access** — accept terms at [meta-llama/Llama-3.2-1B](https://huggingface.co/meta-llama/Llama-3.2-1B) (instant approval)
-4. **GPU recommended** — NVIDIA GPU with 16GB+ VRAM. CPU-only works but is slow (~60s/request).
+1. **Python 3.11+** (tribev2 requires `>=3.11`)
+2. **HuggingFace account** with access to:
+   - [`facebook/tribev2`](https://huggingface.co/facebook/tribev2) — request access on the model page
+   - [`meta-llama/Llama-3.2-1B`](https://huggingface.co/meta-llama/Llama-3.2-1B) — instant approval
+3. **GPU recommended** — NVIDIA GPU with 16GB+ VRAM. CPU-only works but inference takes 30–90s/request.
+4. **ffmpeg** — required by tribev2 for audio processing (`apt install ffmpeg` / `brew install ffmpeg`)
+5. **uv** — tribev2 uses `uvx whisperx` for audio transcription (`curl -LsSf https://astral.sh/uv/install.sh | sh`)
 
-## Setup
+---
 
-### 1. Create and activate the virtual environment
+## Local Development
 
-```bash
-# From project root (already created)
-.\cog_env\Scripts\Activate.ps1        # Windows
-# or
-source cog_env/bin/activate           # macOS / Linux
-```
-
-### 2. Install Python dependencies
+### 1. Install dependencies
 
 ```bash
 cd services/cognitive-scoring/tribe-inference
-pip install -r requirements.txt
+pip install torch==2.5.1+cu124 torchaudio==2.5.1+cu124 --index-url https://download.pytorch.org/whl/cu124
+pip install "git+https://github.com/facebookresearch/tribev2.git" neuralset==0.0.2 neuraltrain==0.0.2 exca==0.5.20
+pip install fastapi uvicorn huggingface_hub pydantic numpy pandas edge-tts
+python -m spacy download en_core_web_sm
 ```
 
-### 3. Authenticate with HuggingFace
+> **`exca==0.5.20` must be pinned.** Versions `>=0.5.21` removed `NoValue` which tribev2 depends on.
+
+### 2. Run the server
 
 ```bash
-huggingface-cli login
-# Enter your HF token when prompted: hf_...
-```
-
-Or set the environment variable (already in .env):
-```bash
-$env:HF_TOKEN = "hf_..."    # PowerShell
-export HF_TOKEN="hf_..."    # bash
-```
-
-### 4. Run the inference server
-
-```bash
-# From services/cognitive-scoring/tribe-inference/
-uvicorn server:app --host 0.0.0.0 --port 8080
-
-# Or with HF token inline:
 HF_TOKEN=hf_xxx uvicorn server:app --host 0.0.0.0 --port 8080
 ```
 
-### 5. Switch CognArc to tribe-local engine
+### 3. Wire up cognitive-scoring
 
-In your `.env`:
+In `services/cognitive-scoring/.env`:
 ```
 COGNARC_SCORING_ENGINE=tribe-local
 TRIBE_LOCAL_ENDPOINT=http://localhost:8080
 ```
 
-Then restart the cognitive-scoring service:
+---
+
+## GCP Cloud Run Deployment
+
+### One-time setup
+
+1. **Store HF token in Secret Manager** (UTF-8, no BOM):
+   ```powershell
+   $bytes = [System.Text.Encoding]::UTF8.GetBytes("hf_xxx")
+   $tmp = [System.IO.Path]::GetTempFileName()
+   [System.IO.File]::WriteAllBytes($tmp, $bytes)
+   gcloud secrets create hf-token --project=cognarc-202605 --data-file=$tmp
+   ```
+
+2. **Grant Secret Manager access** to the Cloud Build service account:
+   ```bash
+   gcloud secrets add-iam-policy-binding hf-token \
+     --project=cognarc-202605 \
+     --member="serviceAccount:225279071809-compute@developer.gserviceaccount.com" \
+     --role="roles/secretmanager.secretAccessor"
+   ```
+
+### Deploy
+
 ```bash
-pnpm --filter @cognarc/cognitive-scoring dev
+# From repo root
+gcloud builds submit \
+  --config services/cognitive-scoring/tribe-inference/cloudbuild.yaml \
+  --project=cognarc-202605
 ```
 
-## Verifying it works
+No `--substitutions` needed — the HF token is read directly from Secret Manager during the build.
 
-```bash
-curl -X POST http://localhost:8080/predict \
-  -H "Content-Type: application/json" \
-  -d '{"stimulus_type":"text","content":"Hello world","workspace_id":"ws-test"}'
+The build:
+1. Installs all Python deps (including `exca==0.5.20`)
+2. Downloads `config.yaml` + `best.ckpt` into `/hf_cache` (baked into image)
+3. Deploys to Cloud Run with NVIDIA L4, 16GiB RAM, `min-instances=0` (scale-to-zero)
+
+### Update the token
+
+```powershell
+$bytes = [System.Text.Encoding]::UTF8.GetBytes("hf_newtoken")
+$tmp = [System.IO.Path]::GetTempFileName()
+[System.IO.File]::WriteAllBytes($tmp, $bytes)
+gcloud secrets versions add hf-token --project=cognarc-202605 --data-file=$tmp
+# Then redeploy
 ```
 
-Expected response: `{"cortical_activations":[...],"model_version":"tribe-v2","latency_ms":...}`
+---
 
-## Health check
+## API
 
-```bash
-curl http://localhost:8080/health
-# {"status":"ready","model":"facebook/tribev2"}
+### `GET /health`
+```json
+{"status": "ready", "model": "facebook/tribev2"}
+```
+Returns `"stub"` if model failed to load.
+
+### `POST /predict`
+```json
+{
+  "stimulus_type": "text",
+  "content": "Evaluate this UI copy for cognitive load.",
+  "workspace_id": "ws-test"
+}
+```
+Response:
+```json
+{
+  "cortical_activations": [0.104, -0.806, ...],
+  "model_version": "tribe-v2",
+  "latency_ms": 4200
+}
 ```
 
-## Notes
+- `model_version: "tribe-v2"` — real TRIBE inference
+- `model_version: "tribe-v2-stub"` — model failed to load, synthetic activations returned
 
-- First run downloads ~15GB of model weights. Set `HF_HOME` to control cache location.
-- `model_version` returns `"tribe-v2-stub"` if TRIBE v2 failed to load — scores will be synthetic.
-- CPU inference takes 30–90 seconds per request. GPU inference is 2–5 seconds.
-- The server is single-threaded by design (TRIBE inference is not safely parallelisable without proper batching).
+---
+
+## Known Constraints
+
+| Issue | Fix applied |
+|---|---|
+| `exca>=0.5.21` removed `NoValue` | Pinned `exca==0.5.20` in Dockerfile |
+| `asyncio.get_event_loop()` fails in AnyIO thread | Using `asyncio.run()` for edge-tts |
+| gTTS rate-limited from GCP datacenter IPs | Replaced with `edge-tts` (local, no external API) |
+| HF token BOM from PowerShell `echo` | Use `[System.IO.File]::WriteAllBytes()` to write clean UTF-8 |
+| `HF_TOKEN` env var conflict in Docker build | Token passed as `sys.argv[1]` to Python, not as env var |
+
+---
+
+## Wire to localhost
+
+In `services/cognitive-scoring/.env`:
+```
+COGNARC_SCORING_ENGINE=tribe-gcp
+GCP_TRIBE_ENDPOINT=https://tribe-inference-l4kyolfkla-uc.a.run.app
+```
+
+Requests to the Cloud Run endpoint require a GCP identity token (handled automatically by the scoring service when running on GCP, or via `gcloud auth print-identity-token` locally).
