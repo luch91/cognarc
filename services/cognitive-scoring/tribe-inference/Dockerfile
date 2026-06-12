@@ -83,11 +83,10 @@ RUN curl -LsSf https://astral.sh/uv/install.sh | UV_INSTALL_DIR=/usr/local/bin s
 # huggingface_hub reading HF_TOKEN from the image environment at runtime.
 ARG HF_TOKEN
 RUN if [ -n "$HF_TOKEN" ]; then \
-    python3 -c "\
-import os, sys; \
+    env -u HF_TOKEN python3 -c "\
+import sys; \
 token = sys.argv[1]; \
-from huggingface_hub import hf_hub_download; \
-from huggingface_hub import login; \
+from huggingface_hub import hf_hub_download, login; \
 login(token=token); \
 hf_hub_download('facebook/tribev2', 'config.yaml'); \
 hf_hub_download('facebook/tribev2', 'best.ckpt'); \
