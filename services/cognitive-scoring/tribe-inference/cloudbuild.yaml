@@ -71,7 +71,7 @@ steps:
       - --min-instances=0
       - --memory=16Gi
       - --cpu=4
-      - --timeout=300
+      - --timeout=600
       - --no-allow-unauthenticated
       - --set-env-vars=HF_HOME=/hf_cache
     waitFor: [push]

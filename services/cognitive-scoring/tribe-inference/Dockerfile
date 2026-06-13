@@ -71,8 +71,8 @@ RUN pip3 install --no-cache-dir \
     "transformers" \
     "edge-tts"
 
-# Download spacy English model.
-RUN python3 -m spacy download en_core_web_sm
+# Download spacy large English model — tribev2 requires en_core_web_lg.
+RUN python3 -m spacy download en_core_web_lg
 
 # Install uv/uvx — tribev2 uses uvx to invoke whisperx for audio transcription.
 # Install to /usr/local/bin so it's on PATH for all users including appuser.
