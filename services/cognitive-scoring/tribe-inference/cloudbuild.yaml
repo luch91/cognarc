@@ -73,7 +73,7 @@ steps:
       - --cpu=4
       - --timeout=300
       - --no-allow-unauthenticated
-      - --set-env-vars=HF_HUB_OFFLINE=1
+      - --set-env-vars=HF_HOME=/hf_cache
     waitFor: [push]
 
 images:
