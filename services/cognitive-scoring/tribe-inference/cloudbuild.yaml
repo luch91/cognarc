@@ -69,8 +69,8 @@ steps:
       - --no-gpu-zonal-redundancy
       - --concurrency=1
       - --min-instances=0
-      - --memory=16Gi
-      - --cpu=4
+      - --memory=32Gi
+      - --cpu=8
       - --timeout=600
       - --no-allow-unauthenticated
       - --set-env-vars=HF_HOME=/hf_cache
