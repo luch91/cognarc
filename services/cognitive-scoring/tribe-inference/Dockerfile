@@ -96,6 +96,15 @@ else \
     echo "WARNING: HF_TOKEN not set — model will download at first request"; \
 fi
 
+# Pre-download faster-whisper-large-v3 into /hf_cache so whisperx finds it
+# at runtime without a network download (survives scale-to-zero).
+RUN pip3 install --no-cache-dir "faster-whisper>=1.0.0" \
+    && python3 -c "\
+from faster_whisper import WhisperModel; \
+WhisperModel('large-v3', device='cpu', compute_type='int8'); \
+print('faster-whisper-large-v3 cached to /hf_cache — done'); \
+"
+
 COPY server.py .
 
 ENV PORT=8080
