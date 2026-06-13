@@ -110,7 +110,11 @@ def run_inference(req: PredictRequest) -> tuple[list[float], str]:
             ) as f:
                 audio_path = pathlib.Path(f.name)
 
-            communicate = edge_tts.Communicate(req.content, voice="en-US-AriaNeural")
+            # Pad short inputs — tribev2 alignment fails if <~20 words (unmatched ratio too high).
+            content = req.content
+            if len(content.split()) < 20:
+                content = content + " " + content
+            communicate = edge_tts.Communicate(content, voice="en-US-AriaNeural")
             asyncio.run(communicate.save(str(audio_path)))
             logger.info(f"Generated TTS audio via edge-tts: {audio_path}")
 
