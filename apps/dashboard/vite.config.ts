@@ -11,6 +11,11 @@ export default defineConfig({
         rewrite: (path) => path.replace(/^\/api\/score/, '/score'),
         changeOrigin: true,
       },
+      '/api/health': {
+        target: 'http://localhost:3001',
+        rewrite: (path) => path.replace(/^\/api\/health/, '/health'),
+        changeOrigin: true,
+      },
     },
   },
   build: {

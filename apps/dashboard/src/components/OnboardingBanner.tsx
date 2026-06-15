@@ -1,5 +1,4 @@
 import { useState } from 'react'
-import { scoreText } from '../api/scoringApi.js'
 
 interface Props {
   onConnected: () => void
@@ -22,9 +21,10 @@ export function OnboardingBanner({ onConnected }: Props) {
     setState('testing')
     setErrorMsg('')
     try {
-      await scoreText('Hello — this is a connection test.', 'ws-onboarding')
+      const res = await fetch('/api/score'.replace('/score', '/health'), { signal: AbortSignal.timeout(5000) })
+      if (!res.ok) throw new Error(`HTTP ${res.status}`)
       setState('success')
-      setTimeout(() => onConnected(), 2000)
+      setTimeout(() => onConnected(), 1500)
     } catch {
       setErrorMsg('Could not reach scoring service. Make sure cognitive-scoring is running on port 3001.')
       setState('error')
