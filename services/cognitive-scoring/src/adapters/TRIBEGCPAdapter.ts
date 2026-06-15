@@ -121,10 +121,14 @@ export class TRIBEGCPAdapter extends TRIBEAdapter {
       // Not on GCP — fall through to ADC
     }
 
-    // Local development: generate token via `gcloud auth print-identity-token`.
-    // Try with explicit audience first; if that fails (SSL cert issues on some machines),
-    // fall back to default audience token which Cloud Run also accepts.
+    // Local development: generate token via gcloud.
+    // On Windows, gcloud is a .cmd file and must be invoked via cmd.exe /c.
+    // Try the full path first, fall back to PATH lookup.
     const { execSync } = await import('child_process')
+    const GCLOUD_CMDS = [
+      'cmd.exe /c ""C:\\Program Files (x86)\\Google\\Cloud SDK\\google-cloud-sdk\\bin\\gcloud.cmd" auth print-identity-token"',
+      'gcloud auth print-identity-token',
+    ]
     const tryExec = (cmd: string): string | null => {
       try {
         return execSync(cmd, { encoding: 'utf8', timeout: 10_000 }).trim()
@@ -133,9 +137,11 @@ export class TRIBEGCPAdapter extends TRIBEAdapter {
       }
     }
 
-    const token =
-      tryExec(`gcloud auth print-identity-token --audiences=${this.gcpEndpoint}`) ??
-      tryExec('gcloud auth print-identity-token')
+    let token: string | null = null
+    for (const cmd of GCLOUD_CMDS) {
+      token = tryExec(cmd)
+      if (token) break
+    }
 
     if (token) return token
 
