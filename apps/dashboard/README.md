@@ -26,3 +26,17 @@ Implemented in P-011.
 ```bash
 pnpm --filter @cognarc/dashboard dev
 ```
+
+## Live Cognitive Scoring
+
+The dashboard connects to `cognitive-scoring` on `localhost:3001` via a Vite proxy (`/api/score`).
+
+For live TRIBE v2 scores:
+1. Start the scoring service: `pnpm --filter @cognarc/cognitive-scoring dev`
+   (with `COGNARC_SCORING_ENGINE=tribe-gcp` in `services/cognitive-scoring/.env`)
+2. Open `http://localhost:5173`
+3. Use the **Live Cognitive Score** panel on the Workspace Overview page
+
+For instant mock scores (no Cloud Run), set `COGNARC_SCORING_ENGINE=mock` in the scoring service `.env`.
+
+Cold start on Cloud Run: ~5 min. Warm requests: ~30s.

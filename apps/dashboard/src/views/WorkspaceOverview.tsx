@@ -5,6 +5,7 @@ import {
 } from 'recharts'
 import { fetchHealthTrend, fetchSurfaces } from '../api/mock.js'
 import { Card } from '../components/Card.js'
+import { LiveScorePanel } from '../components/LiveScorePanel.js'
 import { OnboardingBanner } from '../components/OnboardingBanner.js'
 import { ScoreGauge } from '../components/ScoreGauge.js'
 import { Spinner } from '../components/Spinner.js'
@@ -62,6 +63,9 @@ export function WorkspaceOverview() {
           </div>
         )}
       </Card>
+
+      {/* Live Score */}
+      <LiveScorePanel />
 
       {/* 30-day trend chart */}
       <Card title="30-Day Cognitive Health Trend">

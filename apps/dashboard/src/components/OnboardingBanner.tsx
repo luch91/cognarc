@@ -1,4 +1,5 @@
 import { useState } from 'react'
+import { scoreText } from '../api/scoringApi.js'
 
 interface Props {
   onConnected: () => void
@@ -6,23 +7,28 @@ interface Props {
 
 const STEPS = [
   'Paste your endpoint URL',
-  'Add your API key',
+  'Verify connection',
   'Receive your first cognitive score',
 ]
 
 export function OnboardingBanner({ onConnected }: Props) {
-  const [url, setUrl] = useState('')
-  const [apiKey, setApiKey] = useState('')
-  const [state, setState] = useState<'idle' | 'testing' | 'success'>('idle')
+  const [url, setUrl] = useState('http://localhost:3001')
+  const [state, setState] = useState<'idle' | 'testing' | 'success' | 'error'>('idle')
+  const [errorMsg, setErrorMsg] = useState('')
   const activeStep = state === 'success' ? 2 : state === 'testing' ? 1 : url ? 1 : 0
 
-  function handleConnect() {
+  async function handleConnect() {
     if (!url) return
     setState('testing')
-    setTimeout(() => {
+    setErrorMsg('')
+    try {
+      await scoreText('Hello — this is a connection test.', 'ws-onboarding')
       setState('success')
       setTimeout(() => onConnected(), 2000)
-    }, 1500)
+    } catch {
+      setErrorMsg('Could not reach scoring service. Make sure cognitive-scoring is running on port 3001.')
+      setState('error')
+    }
   }
 
   return (
@@ -56,39 +62,33 @@ export function OnboardingBanner({ onConnected }: Props) {
       {/* Form */}
       {state === 'success' ? (
         <p className="text-sm font-semibold text-teal-700 animate-pulse">
-          Connected! Generating your first score…
+          Connected! Receiving first cognitive score…
         </p>
       ) : (
-        <div className="flex flex-wrap items-end gap-3">
-          <div className="flex-1 min-w-48">
-            <label className="block text-xs text-teal-700 font-medium mb-1">Endpoint URL</label>
-            <input
-              type="text"
-              value={url}
-              onChange={(e) => setUrl(e.target.value)}
-              placeholder="https://api.openai.com/v1"
-              disabled={state === 'testing'}
-              className="w-full text-sm border border-teal-200 bg-white rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-teal-400 disabled:opacity-60"
-            />
+        <div className="space-y-2">
+          <div className="flex flex-wrap items-end gap-3">
+            <div className="flex-1 min-w-48">
+              <label className="block text-xs text-teal-700 font-medium mb-1">Scoring Service URL</label>
+              <input
+                type="text"
+                value={url}
+                onChange={(e) => setUrl(e.target.value)}
+                placeholder="http://localhost:3001"
+                disabled={state === 'testing'}
+                className="w-full text-sm border border-teal-200 bg-white rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-teal-400 disabled:opacity-60"
+              />
+            </div>
+            <button
+              onClick={handleConnect}
+              disabled={!url || state === 'testing'}
+              className="text-sm font-semibold bg-teal-500 hover:bg-teal-600 text-white px-4 py-2 rounded-lg transition-colors disabled:opacity-50 whitespace-nowrap"
+            >
+              {state === 'testing' ? 'Testing connection…' : 'Connect & Start Monitoring'}
+            </button>
           </div>
-          <div className="flex-1 min-w-48">
-            <label className="block text-xs text-teal-700 font-medium mb-1">API Key</label>
-            <input
-              type="password"
-              value={apiKey}
-              onChange={(e) => setApiKey(e.target.value)}
-              placeholder="sk-..."
-              disabled={state === 'testing'}
-              className="w-full text-sm border border-teal-200 bg-white rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-teal-400 disabled:opacity-60"
-            />
-          </div>
-          <button
-            onClick={handleConnect}
-            disabled={!url || state === 'testing'}
-            className="text-sm font-semibold bg-teal-500 hover:bg-teal-600 text-white px-4 py-2 rounded-lg transition-colors disabled:opacity-50 whitespace-nowrap"
-          >
-            {state === 'testing' ? 'Testing connection…' : 'Connect & Start Monitoring'}
-          </button>
+          {state === 'error' && (
+            <p className="text-xs text-red-600 bg-red-50 px-3 py-2 rounded-lg">{errorMsg}</p>
+          )}
         </div>
       )}
     </div>
