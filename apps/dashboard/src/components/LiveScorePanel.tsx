@@ -1,5 +1,6 @@
 import { useState } from 'react'
 import { scoreText, type LiveScoreResult } from '../api/scoringApi.js'
+import { useAppContext } from '../context/AppContext.js'
 import { Card } from './Card.js'
 import { Spinner } from './Spinner.js'
 
@@ -35,6 +36,7 @@ const EXAMPLE_PROMPTS = [
 ]
 
 export function LiveScorePanel() {
+  const { recordLiveScore } = useAppContext()
   const [text, setText] = useState('')
   const [state, setState] = useState<'idle' | 'loading' | 'done' | 'error'>('idle')
   const [result, setResult] = useState<LiveScoreResult | null>(null)
@@ -48,6 +50,7 @@ export function LiveScorePanel() {
       const res = await scoreText(text.trim())
       setResult(res)
       setState('done')
+      recordLiveScore(res)
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Unknown error')
       setState('error')

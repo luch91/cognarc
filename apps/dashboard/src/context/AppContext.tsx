@@ -2,7 +2,8 @@ import { createContext, useContext, useState, type ReactNode } from 'react'
 import {
   mockAgentActivity, mockAuditLog, mockActGatedItems, mockConnectors, mockCreativeAssets,
 } from '../api/mock.js'
-import type { AgentAction, AuditEntry, ActGatedItem, ConnectorStatus, CreativeAsset } from '../api/types.js'
+import type { AgentAction, AuditEntry, ActGatedItem, ConnectorStatus, CreativeAsset, HealthPoint } from '../api/types.js'
+import type { LiveScoreResult } from '../api/scoringApi.js'
 
 // ── Manipulation feed entry ──────────────────────────────────────────────────
 export interface ManipulationFeedEntry {
@@ -51,6 +52,8 @@ interface AppState {
   killSwitchActive: boolean
   killSwitchBanner: boolean
   hasConnectedEndpoint: boolean
+  latestLiveScore: HealthPoint | null
+  liveScoreTrend: HealthPoint[]
 }
 
 // ── Context value ────────────────────────────────────────────────────────────
@@ -67,6 +70,7 @@ interface AppContextValue extends AppState {
   setKillSwitch: (active: boolean) => void
   setKillSwitchBanner: (visible: boolean) => void
   setHasConnectedEndpoint: (value: boolean) => void
+  recordLiveScore: (result: LiveScoreResult) => void
 }
 
 // ── Initial connectors (merged from SettingsView + PMView) ───────────────────
@@ -89,6 +93,8 @@ const INITIAL_STATE: AppState = {
   killSwitchActive: false,
   killSwitchBanner: false,
   hasConnectedEndpoint: false,
+  latestLiveScore: null,
+  liveScoreTrend: [],
 }
 
 const AppContext = createContext<AppContextValue>({
@@ -105,6 +111,7 @@ const AppContext = createContext<AppContextValue>({
   setKillSwitch: () => {},
   setKillSwitchBanner: () => {},
   setHasConnectedEndpoint: () => {},
+  recordLiveScore: () => {},
 })
 
 export function AppProvider({ children }: { children: ReactNode }) {
@@ -118,6 +125,8 @@ export function AppProvider({ children }: { children: ReactNode }) {
   const [killSwitchActive, setKillSwitchActive] = useState(false)
   const [killSwitchBanner, setKillSwitchBannerState] = useState(false)
   const [hasConnectedEndpoint, setHasConnectedEndpointState] = useState(false)
+  const [latestLiveScore, setLatestLiveScore] = useState<HealthPoint | null>(null)
+  const [liveScoreTrend, setLiveScoreTrend] = useState<HealthPoint[]>([])
 
   function addToEvaluationQueue(item: CreativeAsset) {
     setEvaluationQueue((prev) => [item, ...prev])
@@ -201,13 +210,49 @@ export function AppProvider({ children }: { children: ReactNode }) {
     setHasConnectedEndpointState(value)
   }
 
+  function recordLiveScore(result: LiveScoreResult) {
+    const point: HealthPoint = {
+      date: new Date().toLocaleTimeString(),
+      cognitive_load: result.cognitive_load,
+      comprehension: result.comprehension_confidence,
+      trust: result.trust_coherence,
+      manipulation_risk: result.manipulation_risk,
+    }
+    setLatestLiveScore(point)
+    setLiveScoreTrend((prev) => [...prev, point].slice(-30))
+
+    // Raise risk alert in agent feed if thresholds breached
+    const t = thresholds
+    const breaches: string[] = []
+    if (result.cognitive_load > t.cognitiveLoadMax) breaches.push(`cognitive load ${result.cognitive_load}`)
+    if (result.manipulation_risk > t.manipulationRiskMax) breaches.push(`manipulation risk ${result.manipulation_risk}`)
+    if (result.comprehension_confidence < t.comprehensionConfidenceMin) breaches.push(`comprehension ${result.comprehension_confidence}`)
+
+    if (breaches.length > 0) {
+      addAgentFeedEntry({
+        action_type: 'THRESHOLD_BREACH',
+        zone: 'RECOMMEND',
+        status: 'executed',
+        description: `Live score breached thresholds — ${breaches.join(', ')}. Review recommended.`,
+      })
+    } else {
+      addAgentFeedEntry({
+        action_type: 'PROMPT_EVALUATED',
+        zone: 'OBSERVE',
+        status: 'executed',
+        description: `Live score: load ${result.cognitive_load} · comprehension ${result.comprehension_confidence} · manipulation ${result.manipulation_risk} · ${result.cognitive_risk} risk`,
+      })
+    }
+  }
+
   return (
     <AppContext.Provider value={{
       evaluationQueue, auditLog, actGatedQueue, agentFeed, manipulationFeed,
       connectors, thresholds, killSwitchActive, killSwitchBanner, hasConnectedEndpoint,
+      latestLiveScore, liveScoreTrend,
       addToEvaluationQueue, updateEvaluationItem, addAuditEntry, addActGatedItem,
       resolveActGatedItem, addAgentFeedEntry, addManipulationFeedEntry, updateConnector, updateThresholds,
-      setKillSwitch, setKillSwitchBanner, setHasConnectedEndpoint,
+      setKillSwitch, setKillSwitchBanner, setHasConnectedEndpoint, recordLiveScore,
     }}>
       {children}
     </AppContext.Provider>
