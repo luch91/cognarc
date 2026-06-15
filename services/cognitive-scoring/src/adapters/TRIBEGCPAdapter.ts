@@ -2,10 +2,10 @@ import { CognArcError } from '@cognarc/types'
 import { TRIBEAdapter, type TRIBEPredictRequest, type TRIBEPredictResponse } from '../engines/TRIBEAdapter.js'
 import type { CognitiveROIMap } from '../tribe/roi-mapping.js'
 
-// Timeouts: Cloud Run GPU cold starts take 30–60s (loading 709 MB weights).
-// Warm requests complete in ~5s. We distinguish the two cases via retry count.
-const COLD_START_TIMEOUT_MS = 60_000
-const WARM_TIMEOUT_MS = 10_000
+// Timeouts: Cloud Run GPU cold starts take ~300s (TRIBE + whisperx transcription).
+// Warm requests complete in ~30s. We distinguish the two cases via retry count.
+const COLD_START_TIMEOUT_MS = 360_000
+const WARM_TIMEOUT_MS = 360_000
 
 // Retry config: up to 3 attempts with exponential backoff.
 // Covers cold-start 503s and transient network errors.
@@ -122,22 +122,29 @@ export class TRIBEGCPAdapter extends TRIBEAdapter {
     }
 
     // Local development: generate token via `gcloud auth print-identity-token`.
-    // Requires `gcloud` CLI and `gcloud auth application-default login`.
+    // Try with explicit audience first; if that fails (SSL cert issues on some machines),
+    // fall back to default audience token which Cloud Run also accepts.
     const { execSync } = await import('child_process')
-    try {
-      const token = execSync(
-        `gcloud auth print-identity-token --audiences=${this.gcpEndpoint}`,
-        { encoding: 'utf8', timeout: 5_000 },
-      ).trim()
-      return token
-    } catch {
-      throw new CognArcError(
-        'Failed to obtain GCP identity token. ' +
-          'On GCP: ensure the service account has Cloud Run Invoker role. ' +
-          'Locally: run `gcloud auth application-default login`.',
-        'GCP_AUTH_ERROR',
-      )
+    const tryExec = (cmd: string): string | null => {
+      try {
+        return execSync(cmd, { encoding: 'utf8', timeout: 10_000 }).trim()
+      } catch {
+        return null
+      }
     }
+
+    const token =
+      tryExec(`gcloud auth print-identity-token --audiences=${this.gcpEndpoint}`) ??
+      tryExec('gcloud auth print-identity-token')
+
+    if (token) return token
+
+    throw new CognArcError(
+      'Failed to obtain GCP identity token. ' +
+        'On GCP: ensure the service account has Cloud Run Invoker role. ' +
+        'Locally: run `gcloud auth login` and ensure gcloud is on PATH.',
+      'GCP_AUTH_ERROR',
+    )
   }
 
   private isRetryableError(err: unknown): boolean {
