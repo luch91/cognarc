@@ -1,4 +1,5 @@
 import { useState } from 'react'
+import { getScoringProxyUrl } from '../api/scoringApi.js'
 
 interface Props {
   onConnected: () => void
@@ -10,8 +11,10 @@ const STEPS = [
   'Receive your first cognitive score',
 ]
 
+const PROXY_URL = getScoringProxyUrl()
+
 export function OnboardingBanner({ onConnected }: Props) {
-  const [url, setUrl] = useState('http://localhost:3001')
+  const [url, setUrl] = useState(PROXY_URL || 'http://localhost:3001')
   const [state, setState] = useState<'idle' | 'testing' | 'success' | 'error'>('idle')
   const [errorMsg, setErrorMsg] = useState('')
   const activeStep = state === 'success' ? 2 : state === 'testing' ? 1 : url ? 1 : 0
@@ -21,12 +24,24 @@ export function OnboardingBanner({ onConnected }: Props) {
     setState('testing')
     setErrorMsg('')
     try {
-      const res = await fetch('/api/score'.replace('/score', '/health'), { signal: AbortSignal.timeout(5000) })
+      const isRemote = url.startsWith('https://')
+      const healthUrl = isRemote ? `${url}/score` : '/api/health'
+      const res = await fetch(healthUrl, {
+        method: isRemote ? 'POST' : 'GET',
+        ...(isRemote ? {
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ stimulus_type: 'text', content: 'health check', workspace_id: 'onboarding' }),
+        } : {}),
+        signal: AbortSignal.timeout(isRemote ? 120_000 : 5_000),
+      })
       if (!res.ok) throw new Error(`HTTP ${res.status}`)
       setState('success')
       setTimeout(() => onConnected(), 1500)
     } catch {
-      setErrorMsg('Could not reach scoring service. Make sure cognitive-scoring is running on port 3001.')
+      const hint = url.includes('localhost')
+        ? 'Make sure cognitive-scoring is running on port 3001.'
+        : 'Could not reach the scoring endpoint. Check the URL and try again.'
+      setErrorMsg(`Could not reach scoring service. ${hint}`)
       setState('error')
     }
   }
@@ -68,7 +83,9 @@ export function OnboardingBanner({ onConnected }: Props) {
         <div className="space-y-2">
           <div className="flex flex-wrap items-end gap-3">
             <div className="flex-1 min-w-48">
-              <label className="block text-xs text-teal-700 font-medium mb-1">Scoring Service URL</label>
+              <label className="block text-xs text-teal-700 font-medium mb-1">
+                Scoring Service URL{PROXY_URL ? ' (Cloud Run proxy detected)' : ''}
+              </label>
               <input
                 type="text"
                 value={url}
@@ -83,7 +100,9 @@ export function OnboardingBanner({ onConnected }: Props) {
               disabled={!url || state === 'testing'}
               className="text-sm font-semibold bg-teal-500 hover:bg-teal-600 text-white px-4 py-2 rounded-lg transition-colors disabled:opacity-50 whitespace-nowrap"
             >
-              {state === 'testing' ? 'Testing connection…' : 'Connect & Start Monitoring'}
+              {state === 'testing'
+                ? (url.startsWith('https://') ? 'Scoring via Cloud Run (may take ~30s)…' : 'Testing connection…')
+                : 'Connect & Start Monitoring'}
             </button>
           </div>
           {state === 'error' && (
