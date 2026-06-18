@@ -4,7 +4,8 @@
   "tasks": {
     "build": {
       "dependsOn": ["^build"],
-      "outputs": ["dist/**", ".next/**", "!.next/cache/**"]
+      "outputs": ["dist/**", ".next/**", "!.next/cache/**"],
+      "env": ["VITE_SUPABASE_URL", "VITE_SUPABASE_ANON_KEY", "VITE_SCORING_PROXY_URL", "VITE_COGNITIVE_REWRITE_URL", "VITE_VIDEO_ANALYSIS_URL"]
     },
     "dev": {
       "cache": false,
