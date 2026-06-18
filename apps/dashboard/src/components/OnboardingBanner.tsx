@@ -12,9 +12,11 @@ const STEPS = [
 ]
 
 const PROXY_URL = getScoringProxyUrl()
+const IS_DEPLOYED = typeof window !== 'undefined' && !window.location.hostname.includes('localhost')
 
 export function OnboardingBanner({ onConnected }: Props) {
-  const [url, setUrl] = useState(PROXY_URL || 'http://localhost:3001')
+  const defaultUrl = PROXY_URL || (IS_DEPLOYED ? window.location.origin : 'http://localhost:3001')
+  const [url, setUrl] = useState(defaultUrl)
   const [state, setState] = useState<'idle' | 'testing' | 'success' | 'error'>('idle')
   const [errorMsg, setErrorMsg] = useState('')
   const activeStep = state === 'success' ? 2 : state === 'testing' ? 1 : url ? 1 : 0
@@ -25,16 +27,8 @@ export function OnboardingBanner({ onConnected }: Props) {
     setErrorMsg('')
     try {
       const isLocalhost = url.includes('localhost')
-      const healthUrl = isLocalhost ? '/api/health' : `${url}/api/score`
-      const method = isLocalhost ? 'GET' : 'POST'
-      const res = await fetch(healthUrl, {
-        method,
-        ...(method === 'POST' ? {
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ stimulus_type: 'text', content: 'health check', workspace_id: 'onboarding' }),
-        } : {}),
-        signal: AbortSignal.timeout(isLocalhost ? 5_000 : 120_000),
-      })
+      const healthUrl = isLocalhost ? '/api/health' : `${url === window.location.origin ? '' : url}/api/score`
+      const res = await fetch(healthUrl, { signal: AbortSignal.timeout(10_000) })
       if (!res.ok) throw new Error(`HTTP ${res.status}`)
       setState('success')
       setTimeout(() => onConnected(), 1500)
@@ -101,9 +95,7 @@ export function OnboardingBanner({ onConnected }: Props) {
               disabled={!url || state === 'testing'}
               className="text-sm font-semibold bg-teal-500 hover:bg-teal-600 text-white px-4 py-2 rounded-lg transition-colors disabled:opacity-50 whitespace-nowrap"
             >
-              {state === 'testing'
-                ? (url.startsWith('https://') ? 'Scoring via Cloud Run (may take ~30s)…' : 'Testing connection…')
-                : 'Connect & Start Monitoring'}
+              {state === 'testing' ? 'Testing connection…' : 'Connect & Start Monitoring'}
             </button>
           </div>
           {state === 'error' && (

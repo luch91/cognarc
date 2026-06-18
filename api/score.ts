@@ -45,6 +45,11 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     return
   }
 
+  if (req.method === 'GET') {
+    res.status(200).json({ status: 'ok', engine: TRIBE_ENDPOINT ? 'tribe-gcp' : 'not-configured' })
+    return
+  }
+
   if (req.method !== 'POST') {
     res.status(405).json({ error: 'Method not allowed' })
     return
