@@ -1,12 +1,33 @@
-node_modules
-**/node_modules
 .git
-**/dist
-apps/docs
-services
-packages
-tests
-infrastructure
-config
-*.log
-.turbo
+.venv
+__pycache__
+*.pyc
+cog_env
+
+# Python service venvs and logs
+services/cognitive-rewrite/.venv
+services/video-analysis/.venv
+services/**/*.log
+
+# Large model files
+*.ckpt
+*.pkl
+*.pt
+*.bin
+*.h5
+*.safetensors
+services/cognitive-scoring/tribe-inference/hf_model/
+services/cognitive-scoring/tribe-inference/cache/
+
+# Test artifacts
+test-results/
+coverage/
+
+# Docs/infra not needed for build
+infrastructure/
+config/
+
+# Temp files
+gcloud-where.txt
+supabase/.temp/
+.claude/
