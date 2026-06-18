@@ -88,6 +88,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         stimulus_type: body.stimulus_type ?? 'text',
         content: body.content,
         modality: body.stimulus_type ?? 'text',
+        workspace_id: body.workspace_id ?? 'trial',
       }),
       signal: AbortSignal.timeout(120_000),
     })
