@@ -1,5 +1,4 @@
 import type { VercelRequest, VercelResponse } from '@vercel/node'
-import { GoogleAuth } from 'google-auth-library'
 
 const TRIBE_ENDPOINT = process.env.GCP_TRIBE_ENDPOINT ?? ''
 const RATE_LIMIT_MAX = parseInt(process.env.RATE_LIMIT_MAX ?? '10', 10)
@@ -24,30 +23,16 @@ function getRateLimit(ip: string): { allowed: boolean; remaining: number } {
   return { allowed: true, remaining: RATE_LIMIT_MAX - entry.count }
 }
 
-let authClient: GoogleAuth | null = null
-
-function getAuth(): GoogleAuth {
-  if (authClient) return authClient
-
+async function getAuthHeaders(): Promise<Record<string, string>> {
   const keyJson = process.env.GCP_SERVICE_ACCOUNT_KEY
-  if (!keyJson) {
-    throw new Error('GCP_SERVICE_ACCOUNT_KEY not configured')
-  }
+  if (!keyJson) return {}
 
+  const { GoogleAuth } = await import('google-auth-library')
   const credentials = JSON.parse(keyJson) as Record<string, unknown>
-  authClient = new GoogleAuth({
-    credentials,
-    scopes: [],
-  })
-  return authClient
-}
-
-async function getIdentityToken(): Promise<string> {
-  const auth = getAuth()
+  const auth = new GoogleAuth({ credentials, scopes: [] })
   const client = await auth.getIdTokenClient(TRIBE_ENDPOINT)
   const headers = await client.getRequestHeaders()
-  const authHeader = headers.Authorization ?? headers.authorization ?? ''
-  return authHeader.replace(/^Bearer\s+/i, '')
+  return headers as Record<string, string>
 }
 
 export default async function handler(req: VercelRequest, res: VercelResponse) {
@@ -91,13 +76,13 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
   }
 
   try {
-    const token = await getIdentityToken()
+    const authHeaders = await getAuthHeaders()
 
     const tribeRes = await fetch(`${TRIBE_ENDPOINT}/predict`, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
-        Authorization: `Bearer ${token}`,
+        ...authHeaders,
       },
       body: JSON.stringify({
         stimulus_type: body.stimulus_type ?? 'text',
