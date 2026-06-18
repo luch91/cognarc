@@ -25,7 +25,7 @@ export function OnboardingBanner({ onConnected }: Props) {
     setErrorMsg('')
     try {
       const isRemote = url.startsWith('https://')
-      const healthUrl = isRemote ? `${url}/score` : '/api/health'
+      const healthUrl = isRemote ? `${url}/api/score` : '/api/health'
       const res = await fetch(healthUrl, {
         method: isRemote ? 'POST' : 'GET',
         ...(isRemote ? {

@@ -37,7 +37,7 @@ export async function scoreTextRemote(text: string): Promise<LiveScoreResult> {
     throw new Error('Scoring proxy not configured — set VITE_SCORING_PROXY_URL')
   }
 
-  const res = await fetch(`${SCORING_PROXY_URL}/score`, {
+  const res = await fetch(`${SCORING_PROXY_URL}/api/score`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ stimulus_type: 'text', content: text, workspace_id: 'trial' }),
