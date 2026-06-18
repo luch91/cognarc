@@ -24,15 +24,16 @@ export function OnboardingBanner({ onConnected }: Props) {
     setState('testing')
     setErrorMsg('')
     try {
-      const isRemote = url.startsWith('https://')
-      const healthUrl = isRemote ? `${url}/api/score` : '/api/health'
+      const isLocalhost = url.includes('localhost')
+      const healthUrl = isLocalhost ? '/api/health' : `${url}/api/score`
+      const method = isLocalhost ? 'GET' : 'POST'
       const res = await fetch(healthUrl, {
-        method: isRemote ? 'POST' : 'GET',
-        ...(isRemote ? {
+        method,
+        ...(method === 'POST' ? {
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ stimulus_type: 'text', content: 'health check', workspace_id: 'onboarding' }),
         } : {}),
-        signal: AbortSignal.timeout(isRemote ? 120_000 : 5_000),
+        signal: AbortSignal.timeout(isLocalhost ? 5_000 : 120_000),
       })
       if (!res.ok) throw new Error(`HTTP ${res.status}`)
       setState('success')

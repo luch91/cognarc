@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { scoreTextRemote, getScoringProxyUrl, type LiveScoreResult } from '../api/scoringApi.js'
+import { scoreTextRemote, type LiveScoreResult } from '../api/scoringApi.js'
 import { useAppContext } from '../context/AppContext.js'
 import { Card } from './Card.js'
 import { CognitiveScoreCard } from './CognitiveScoreCard.js'
@@ -11,15 +11,17 @@ const TRIAL_PROMPTS = [
   { label: 'Authority appeal', text: 'Leading scientists unanimously agree this is the only framework proven to guarantee success in every situation without exception.' },
 ]
 
+const SHOW_TRIAL = import.meta.env.VITE_SHOW_TRIAL_SCORING === 'true'
+  || !!import.meta.env.VITE_SCORING_PROXY_URL
+
 export function TryLiveScoring() {
-  const proxyUrl = getScoringProxyUrl()
   const { recordLiveScore } = useAppContext()
   const [text, setText] = useState('')
   const [state, setState] = useState<'idle' | 'loading' | 'done' | 'error'>('idle')
   const [result, setResult] = useState<LiveScoreResult | null>(null)
   const [error, setError] = useState<string | null>(null)
 
-  if (!proxyUrl) return null
+  if (!SHOW_TRIAL) return null
 
   async function handleScore() {
     if (!text.trim() || state === 'loading') return

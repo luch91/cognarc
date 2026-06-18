@@ -33,11 +33,10 @@ export function getScoringProxyUrl(): string {
 }
 
 export async function scoreTextRemote(text: string): Promise<LiveScoreResult> {
-  if (!SCORING_PROXY_URL) {
-    throw new Error('Scoring proxy not configured — set VITE_SCORING_PROXY_URL')
-  }
+  const baseUrl = SCORING_PROXY_URL || ''
+  const endpoint = baseUrl ? `${baseUrl}/api/score` : '/api/score'
 
-  const res = await fetch(`${SCORING_PROXY_URL}/api/score`, {
+  const res = await fetch(endpoint, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ stimulus_type: 'text', content: text, workspace_id: 'trial' }),
