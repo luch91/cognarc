@@ -2,3 +2,4 @@
 export * from './scoring'
 export * from './audit'
 export * from './errors'
+export * from './rewrite-client'

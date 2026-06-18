@@ -2,7 +2,7 @@ import type {
   HealthPoint, AgentAction, KillSwitchState, ConnectedSurface,
   PromptBaseline, CicdRun, AuditEntry, ConnectorStatus, AlignmentPoint,
   ModelProfile, CreativeAsset, TrustDriftPoint, ManipulationFlag,
-  RemediationItem, ActGatedItem,
+  RemediationItem, ActGatedItem, VideoAnalysisResult,
 } from './types.js'
 
 function days(n: number): string[] {
@@ -117,10 +117,34 @@ export const mockModelProfiles: ModelProfile[] = [
   { id: 'm3', name: 'gemini-1.5-pro', provider: 'Google', cognitive_load_avg: 45, comprehension_avg: 74, trust_avg: 76, manipulation_avg: 18, benchmark_date: '2026-04-28' },
 ]
 
+const MOCK_VIDEO_ANALYSIS: VideoAnalysisResult = {
+  filename: 'social-ad-v1.mp4',
+  duration_seconds: 30,
+  analysis_mode: 'demo',
+  overall_cognitive_load: 62,
+  overall_manipulation_risk: 52,
+  overall_trust_coherence: 55,
+  overall_attention_engagement: 66,
+  cognitive_risk: 'HIGH',
+  moment_findings: [
+    { timestamp_start: 0,  timestamp_end: 8,  component: 'Opening Hook',    severity: 'warning',  finding: 'Cognitive load spikes in first 8 seconds due to rapid scene cuts and dense text overlay.',   recommendation: 'Slow the opening sequence and limit on-screen text to one claim per scene.',     cognitive_load: 72, manipulation_risk: 38, trust_coherence: 64, attention_engagement: 80 },
+    { timestamp_start: 8,  timestamp_end: 16, component: 'Voiceover',       severity: 'critical', finding: 'Voiceover uses urgency language that correlates with elevated manipulation risk.',         recommendation: 'Replace urgency language with benefit-led copy focused on outcome, not scarcity.', cognitive_load: 65, manipulation_risk: 78, trust_coherence: 48, attention_engagement: 62, voiceover_segment: "Act now — only a limited number of spots remain. Don't miss this exclusive opportunity." },
+    { timestamp_start: 16, timestamp_end: 20, component: 'Scene Transition', severity: 'warning',  finding: 'Trust coherence drops 12 points at the mid-roll scene transition.',                       recommendation: 'Use a visual bridge to maintain narrative continuity.',                            cognitive_load: 58, manipulation_risk: 42, trust_coherence: 52, attention_engagement: 55 },
+    { timestamp_start: 20, timestamp_end: 26, component: 'Product Demo',     severity: 'warning',  finding: 'Attention engagement dips during product demo — no clear focal point.',                    recommendation: 'Add motion arrows or zoom-in to guide attention to key interface elements.',       cognitive_load: 62, manipulation_risk: 31, trust_coherence: 61, attention_engagement: 44 },
+    { timestamp_start: 26, timestamp_end: 30, component: 'CTA',              severity: 'critical', finding: 'CTA overlay contains scarcity framing that triggers manipulation detection.',              recommendation: 'Replace countdown timer with social proof to build trust without pressure.',       cognitive_load: 55, manipulation_risk: 71, trust_coherence: 50, attention_engagement: 88 },
+  ],
+  rewrite_candidates: ["Act now — only a limited number of spots remain. Don't miss this exclusive opportunity."],
+  recommended_actions: [
+    'Rewrite the voiceover urgency language (see rewrite suggestions above)',
+    'Add a focal point guide to the product demo sequence',
+    'Align the scene transition visual to the benefit message',
+  ],
+}
+
 export const mockCreativeAssets: CreativeAsset[] = [
   { id: 'c1', name: 'hero-banner-v3.png', type: 'image', uploaded_at: new Date(Date.now() - 7200000).toISOString(), status: 'complete', cognitive_load: 52, trust: 74, risk: 'MEDIUM' },
   { id: 'c2', name: 'email-body-copy.txt', type: 'copy', uploaded_at: new Date(Date.now() - 3600000).toISOString(), status: 'complete', cognitive_load: 71, trust: 48, risk: 'HIGH' },
-  { id: 'c3', name: 'social-ad-v1.mp4', type: 'video', uploaded_at: new Date(Date.now() - 1800000).toISOString(), status: 'processing', risk: 'LOW' },
+  { id: 'c3', name: 'social-ad-v1.mp4', type: 'video', uploaded_at: new Date(Date.now() - 1800000).toISOString(), status: 'complete', cognitive_load: 62, trust: 55, risk: 'HIGH', videoAnalysis: MOCK_VIDEO_ANALYSIS, videoAnalysisDemoMode: true },
   { id: 'c4', name: 'landing-headline-v2.txt', type: 'copy', uploaded_at: new Date(Date.now() - 900000).toISOString(), status: 'queued', risk: 'LOW' },
 ]
 

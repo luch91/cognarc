@@ -1,12 +1,16 @@
-import { useRef } from 'react'
+import { useRef, useState } from 'react'
 import { useQuery } from '@tanstack/react-query'
 import {
   ResponsiveContainer, LineChart, Line, AreaChart, Area, XAxis, YAxis, Tooltip, Legend, ReferenceLine,
 } from 'recharts'
 import { fetchTrustDrift } from '../api/mock.js'
+import { analyzeVideo, makeFallbackVideoAnalysis } from '../api/videoAnalysisApi.js'
+import { supabase } from '../api/supabaseClient.js'
 import { Card } from '../components/Card.js'
 import { RiskBadge } from '../components/RiskBadge.js'
 import { Spinner } from '../components/Spinner.js'
+import { MessageClarityScorer } from '../components/MessageClarityScorer.js'
+import { VideoReport } from '../components/VideoReport.js'
 import { useAppContext } from '../context/AppContext.js'
 import type { CreativeAsset } from '../api/types.js'
 
@@ -49,10 +53,18 @@ const VARIANT_SCORES = [
   { id: 'v3', name: 'Variant C — "Act now — limited offer!"', cognitive_load: 65, trust: 43, manipulation: 67, rank: 3 },
 ]
 
+function isVideo(name: string) {
+  return /\.(mp4|mov|webm)$/i.test(name)
+}
+
 export function GrowthView() {
   const { data: trustDrift, isLoading: tdLoading } = useQuery({ queryKey: ['trust-drift'], queryFn: fetchTrustDrift })
   const fileInputRef = useRef<HTMLInputElement>(null)
-  const { evaluationQueue: queue, addToEvaluationQueue, updateEvaluationItem, addAgentFeedEntry, addManipulationFeedEntry, addActGatedItem } = useAppContext()
+  const [openReportId, setOpenReportId] = useState<string | null>(null)
+  const {
+    evaluationQueue: queue, addToEvaluationQueue, updateEvaluationItem,
+    addAgentFeedEntry, addManipulationFeedEntry, addActGatedItem, addAuditEntry,
+  } = useAppContext()
 
   const spring = trustDrift?.filter((d) => d.campaign === 'Spring Launch') ?? []
   const retention = trustDrift?.filter((d) => d.campaign === 'Retention Drive') ?? []
@@ -61,6 +73,137 @@ export function GrowthView() {
     'Spring Launch': s.trust,
     'Retention Drive': retention[i]?.trust,
   }))
+
+  async function runVideoAnalysis(id: string, file: File) {
+    let analysis
+    let demoMode = false
+    try {
+      analysis = await analyzeVideo(file.name, file.size, 30, 'ws-1')
+    } catch {
+      analysis = makeFallbackVideoAnalysis(file.name)
+      demoMode = true
+    }
+
+    updateEvaluationItem(id, {
+      status: 'complete',
+      cognitive_load: Math.round(analysis.overall_cognitive_load),
+      trust: Math.round(analysis.overall_trust_coherence),
+      risk: analysis.cognitive_risk,
+      videoAnalysis: analysis,
+      videoAnalysisDemoMode: demoMode,
+    })
+
+    // C07: persist video report to Supabase evaluation_queue
+    if (supabase) {
+      supabase
+        .from('evaluation_queue')
+        .update({
+          video_report: analysis,
+          status: 'complete',
+          cognitive_load: Math.round(analysis.overall_cognitive_load),
+          manipulation_risk: Math.round(analysis.overall_manipulation_risk),
+          trust_coherence: Math.round(analysis.overall_trust_coherence),
+        })
+        .eq('id', id)
+        .then(({ error }) => { if (error) console.error('[supabase] evaluation_queue update failed:', error) })
+    }
+
+    // B08: feed critical video findings into Safety manipulation feed + audit
+    const criticalFindings = analysis.moment_findings.filter(
+      (f) => f.severity === 'critical' || f.manipulation_risk > 70,
+    )
+    for (const f of criticalFindings) {
+      addManipulationFeedEntry({
+        category: 'false_urgency',
+        score: Math.round(f.manipulation_risk),
+        time: 'just now',
+        excerpt: `[${file.name} at ${f.timestamp_start}s] ${(f.voiceover_segment ?? f.finding).slice(0, 60)}…`,
+      })
+      addAuditEntry({
+        action_type: 'VIDEO_MANIPULATION_DETECTED',
+        zone: 'OBSERVE',
+        outcome: 'flagged',
+        authorising_human_or_policy: 'policy:v1.2',
+        policy_rule: 'rule:v1.2',
+      })
+
+      // C08: persist audit entry to Supabase
+      if (supabase) {
+        supabase.from('audit_log').insert({
+          workspace_id: 'ws-1',
+          action_type: 'VIDEO_MANIPULATION_DETECTED',
+          oversight_zone: 'OBSERVE',
+          outcome: 'flagged',
+          authorising_human_or_policy: 'policy:v1.2',
+          policy_rule_applied: 'rule:v1.2',
+          metadata: {
+            filename: file.name,
+            timestamp: f.timestamp_start,
+            category: 'false_urgency',
+            score: Math.round(f.manipulation_risk),
+            excerpt: (f.voiceover_segment ?? f.finding).slice(0, 80),
+            source: 'video_analysis',
+          },
+        }).then(({ error }) => { if (error) console.error('[supabase] audit_log insert failed:', error) })
+      }
+    }
+
+    // B08: overall manipulation flag → agent feed
+    if (analysis.overall_manipulation_risk > 40) {
+      addAgentFeedEntry({
+        action_type: 'CREATIVE_EVAL',
+        zone: 'RECOMMEND',
+        description: `Video manipulation risk ${Math.round(analysis.overall_manipulation_risk)}/100 detected in ${file.name} — review recommended.`,
+        status: 'executed',
+      })
+    }
+
+    // C08: overall manipulation > 70 → Act-Gated item (AppContext + Supabase)
+    if (analysis.overall_manipulation_risk > 70) {
+      addActGatedItem({
+        action_type: 'CONTENT_FLAG',
+        description: `${file.name} flagged for overall manipulation risk ${Math.round(analysis.overall_manipulation_risk)}/100`,
+        proposed_action: 'Remove or remediate high-manipulation video content before publishing.',
+        alternatives: [
+          'Rewrite voiceover urgency language and resubmit',
+          'Request human review only',
+          'Auto-remediate by muting identified segments',
+        ],
+        evidence_summary: `Video "${file.name}" scored ${Math.round(analysis.overall_manipulation_risk)}/100 on manipulation risk during automated video analysis.`,
+        cognitive_scores: {
+          cognitive_load: Math.round(analysis.overall_cognitive_load),
+          comprehension: 60,
+          trust: Math.round(analysis.overall_trust_coherence),
+          manipulation_risk: Math.round(analysis.overall_manipulation_risk),
+        },
+        status: 'pending',
+      })
+
+      if (supabase) {
+        supabase.from('act_gated_queue').insert({
+          workspace_id: 'ws-1',
+          title: `${file.name} — overall manipulation risk ${Math.round(analysis.overall_manipulation_risk)}/100`,
+          type: 'CONTENT_FLAG',
+          status: 'pending',
+          decision_by: new Date(Date.now() + 2 * 24 * 60 * 60 * 1000).toISOString(),
+          package_data: {
+            filename: file.name,
+            overall_scores: {
+              cognitive_load: analysis.overall_cognitive_load,
+              manipulation_risk: analysis.overall_manipulation_risk,
+              trust_coherence: analysis.overall_trust_coherence,
+            },
+            critical_findings: criticalFindings.map((cf) => ({
+              timestamp: cf.timestamp_start,
+              component: cf.component,
+              manipulation_risk: cf.manipulation_risk,
+              finding: cf.finding,
+            })),
+          },
+        }).then(({ error }) => { if (error) console.error('[supabase] act_gated_queue insert failed:', error) })
+      }
+    }
+  }
 
   function handleUpload(e: React.ChangeEvent<HTMLInputElement>) {
     const file = e.target.files?.[0]
@@ -71,7 +214,7 @@ export function GrowthView() {
     const newItem: CreativeAsset = {
       id: newId,
       name: file.name,
-      type: file.type.startsWith('image') ? 'image' : file.type.startsWith('video') ? 'video' : 'copy',
+      type: file.type.startsWith('image') ? 'image' : file.type.startsWith('video') ? 'video' : isVideo(file.name) ? 'video' : 'copy',
       uploaded_at: new Date().toISOString(),
       status: 'queued',
       risk: 'LOW',
@@ -83,44 +226,49 @@ export function GrowthView() {
       updateEvaluationItem(newId, { status: 'processing' })
     }, 2000)
 
-    setTimeout(() => {
-      const manipulation = 61
-      updateEvaluationItem(newId, { status: 'complete', cognitive_load: 61, trust: 67, risk: 'MEDIUM' })
+    if (newItem.type === 'video') {
+      // Video: call analysis service after the "processing" delay
+      setTimeout(() => {
+        void runVideoAnalysis(newId, file)
+      }, 2500)
+    } else {
+      // Non-video: existing scoring simulation
+      setTimeout(() => {
+        const manipulation = 61
+        updateEvaluationItem(newId, { status: 'complete', cognitive_load: 61, trust: 67, risk: 'MEDIUM' })
 
-      if (manipulation > 40) {
-        // Agent Activity Feed entry
-        addAgentFeedEntry({
-          action_type: 'CREATIVE_EVAL',
-          zone: 'RECOMMEND',
-          description: `Manipulation risk ${manipulation}/100 detected in ${file.name} — review recommended.`,
-          status: 'executed',
-        })
-
-        // Safety Manipulation Detection Feed
-        const excerpt = file.name.length > 50
-          ? file.name.slice(0, 50) + '…'
-          : `${file.name} — Creative asset evaluated`
-        addManipulationFeedEntry({
-          category: 'false_urgency',
-          score: manipulation,
-          time: 'just now',
-          excerpt,
-        })
-
-        // Act-Gated item if very high risk
-        if (manipulation > 70) {
-          addActGatedItem({
-            action_type: 'CONTENT_FLAG',
-            description: `${file.name} flagged for manipulation risk ${manipulation}/100`,
-            proposed_action: 'Remove or remediate high-manipulation content before publishing.',
-            alternatives: ['Rewrite with lower urgency language', 'Request human review only', 'Auto-remediate urgency language'],
-            evidence_summary: `Creative asset "${file.name}" scored ${manipulation}/100 on manipulation risk during automated evaluation.`,
-            cognitive_scores: { cognitive_load: 61, comprehension: 67, trust: 55, manipulation_risk: manipulation },
-            status: 'pending',
+        if (manipulation > 40) {
+          addAgentFeedEntry({
+            action_type: 'CREATIVE_EVAL',
+            zone: 'RECOMMEND',
+            description: `Manipulation risk ${manipulation}/100 detected in ${file.name} — review recommended.`,
+            status: 'executed',
           })
+
+          const excerpt = file.name.length > 50
+            ? file.name.slice(0, 50) + '…'
+            : `${file.name} — Creative asset evaluated`
+          addManipulationFeedEntry({
+            category: 'false_urgency',
+            score: manipulation,
+            time: 'just now',
+            excerpt,
+          })
+
+          if (manipulation > 70) {
+            addActGatedItem({
+              action_type: 'CONTENT_FLAG',
+              description: `${file.name} flagged for manipulation risk ${manipulation}/100`,
+              proposed_action: 'Remove or remediate high-manipulation content before publishing.',
+              alternatives: ['Rewrite with lower urgency language', 'Request human review only', 'Auto-remediate urgency language'],
+              evidence_summary: `Creative asset "${file.name}" scored ${manipulation}/100 on manipulation risk during automated evaluation.`,
+              cognitive_scores: { cognitive_load: 61, comprehension: 67, trust: 55, manipulation_risk: manipulation },
+              status: 'pending',
+            })
+          }
         }
-      }
-    }, 5000)
+      }, 5000)
+    }
   }
 
   return (
@@ -142,42 +290,68 @@ export function GrowthView() {
         <input
           ref={fileInputRef}
           type="file"
-          accept="image/*,text/*,video/*"
+          accept="image/*,text/*,video/*,.mp4,.mov,.webm"
           className="hidden"
           aria-label="Upload creative asset"
           onChange={handleUpload}
         />
         <div className="space-y-2">
           {queue.map((a) => (
-            <div key={a.id} className="flex items-center gap-3 p-3 rounded-lg border border-gray-100 hover:bg-gray-50 transition-colors">
-              <span className="text-lg" aria-hidden>
-                {a.type === 'image' ? '🖼' : a.type === 'video' ? '🎬' : '📝'}
-              </span>
-              <div className="flex-1 min-w-0">
-                <p className="text-sm font-medium text-gray-700 truncate">{a.name}</p>
-                <p className="text-xs text-gray-400">{new Date(a.uploaded_at).toLocaleString()}</p>
-              </div>
-              <div className="flex items-center gap-3 shrink-0">
-                {a.status === 'complete' && a.cognitive_load !== undefined && (
-                  <span className="text-xs text-gray-500">
-                    Load: <span className="font-semibold">{a.cognitive_load}</span> · Trust: <span className="font-semibold">{a.trust}</span>
-                  </span>
-                )}
-                {a.status !== 'complete' && (
-                  <span className="text-xs text-gray-400">Load: — · Trust: —</span>
-                )}
-                <RiskBadge risk={a.risk} />
-                <span className={`text-xs px-1.5 py-0.5 rounded font-semibold ${
-                  a.status === 'complete' ? 'bg-green-100 text-green-700' :
-                  a.status === 'processing' ? 'bg-blue-100 text-blue-700' :
-                  'bg-gray-100 text-gray-500'
-                }`}>
-                  {a.status}
+            <div key={a.id}>
+              <div className="flex items-center gap-3 p-3 rounded-lg border border-gray-100 hover:bg-gray-50 transition-colors">
+                <span className="text-lg" aria-hidden>
+                  {a.type === 'image' ? '🖼' : a.type === 'video' ? '🎬' : '📝'}
                 </span>
+                <div className="flex-1 min-w-0">
+                  <p className="text-sm font-medium text-gray-700 truncate">{a.name}</p>
+                  <p className="text-xs text-gray-400">{new Date(a.uploaded_at).toLocaleString()}</p>
+                </div>
+                <div className="flex items-center gap-3 shrink-0">
+                  {a.status === 'complete' && a.cognitive_load !== undefined && (
+                    <span className="text-xs text-gray-500">
+                      Load: <span className="font-semibold">{a.cognitive_load}</span> · Trust: <span className="font-semibold">{a.trust}</span>
+                    </span>
+                  )}
+                  {a.status !== 'complete' && (
+                    <span className="text-xs text-gray-400">Load: — · Trust: —</span>
+                  )}
+                  <RiskBadge risk={a.risk} />
+                  <span className={`text-xs px-1.5 py-0.5 rounded font-semibold ${
+                    a.status === 'complete' ? 'bg-green-100 text-green-700' :
+                    a.status === 'processing' ? 'bg-blue-100 text-blue-700' :
+                    'bg-gray-100 text-gray-500'
+                  }`}>
+                    {a.status}
+                  </span>
+                  {a.type === 'video' && a.status === 'complete' && a.videoAnalysis && (
+                    <button
+                      onClick={() => setOpenReportId(openReportId === a.id ? null : a.id)}
+                      className="text-xs text-brand-600 hover:text-brand-700 font-medium underline underline-offset-2 shrink-0"
+                    >
+                      {openReportId === a.id ? 'Hide report' : 'View Report →'}
+                    </button>
+                  )}
+                </div>
               </div>
+              {/* Inline video report panel */}
+              {a.type === 'video' && openReportId === a.id && a.videoAnalysis && (
+                <VideoReport
+                  report={a.videoAnalysis}
+                  {...(a.videoAnalysisDemoMode ? { demoMode: a.videoAnalysisDemoMode } : {})}
+                  onClose={() => setOpenReportId(null)}
+                />
+              )}
             </div>
           ))}
         </div>
+      </Card>
+
+      {/* Copy Health Checker */}
+      <Card
+        title="Copy Health Checker"
+        action={<span className="text-xs text-gray-400">Paste any copy — headline, email, CTA, or landing page section — and see how your audience is likely to respond.</span>}
+      >
+        <MessageClarityScorer />
       </Card>
 
       {/* Variant Ranker */}

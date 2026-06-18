@@ -7,6 +7,7 @@ import { fetchHealthTrend, fetchSurfaces } from '../api/mock.js'
 import { Card } from '../components/Card.js'
 import { LiveScorePanel } from '../components/LiveScorePanel.js'
 import { OnboardingBanner } from '../components/OnboardingBanner.js'
+import { TryLiveScoring } from '../components/TryLiveScoring.js'
 import { ScoreGauge } from '../components/ScoreGauge.js'
 import { Spinner } from '../components/Spinner.js'
 import { ZoneBadge } from '../components/ZoneBadge.js'
@@ -81,6 +82,9 @@ export function WorkspaceOverview() {
 
       {/* Live Score */}
       <LiveScorePanel />
+
+      {/* Try Live Scoring — Cloud Run proxy for trial users */}
+      <TryLiveScoring />
 
       {/* 30-day trend chart */}
       <Card

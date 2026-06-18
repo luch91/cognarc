@@ -753,7 +753,7 @@ If Vercel is not suitable, Netlify is an identical process:
 ---
 
 ### FIX-16 · Add Manipulation Category Breakdown to Safety Audit Trail
-
+read CLAUDE.md
 **Do not touch:** The audit trail component structure. The zone badge colours. The Safety view's other sections.
 
 ```
@@ -789,7 +789,7 @@ Do not touch any other row types or any other section.
 ---
 
 ### FIX-17 · Add Baseline Delta to CI/CD Gate Results
-
+read CLAUDE.md
 **Do not touch:** The PR cards' existing content (PASS/WARN/FAIL badge, PR number, branch name, risk score, timestamp). Just add the delta.
 
 ```
@@ -821,7 +821,7 @@ Do not touch:
 ---
 
 ### FIX-18 · Add A/B Comparison Share Link and Confidence Level
-
+read CLAUDE.md
 **Do not touch:** The variant scores, the winner recommendation, the Onboarding Load Curve below it.
 
 ```
@@ -854,7 +854,7 @@ Do not touch:
 ---
 
 ### FIX-19 · Add Detector Annotations to Onboarding Load Curve
-
+read CLAUDE.md
 **Do not touch:** The table's structure, column headers, or existing values. Just add annotations to specific rows.
 
 ```
@@ -937,7 +937,7 @@ Do not touch the PASS cards (no rewrites shown for passing PRs).
 ---
 
 ### FIX-21 · Add Event-to-Cognition Sample to PM View
-
+read CLAUDE.md
 **Do not touch:** The Alignment Score panel. The 30-Day Alignment chart. The Analytics Connector Status table. Any other PM view section.
 
 ```
@@ -974,7 +974,7 @@ Do not touch any existing PM view section.
 ---
 
 ### FIX-22 · Expand the Connected Surfaces Panel
-
+read CLAUDE.md
 **Do not touch:** The Agent Activity Feed beside it. The Cognitive Health section above. Any other Workspace Overview section.
 
 ```
@@ -988,7 +988,7 @@ Show 4 connected surface rows:
   🟢  GitHub Repo      · cognarc-app · CI/CD gate active
   🟢  Amplitude        · Write-back enabled · 8,421 events today
   🟡  Mixpanel         · Degraded · 0 events today
-
+The surfaces have to function
 Add a fifth row as a placeholder:
   ➕  Add Surface       · (grey, clickable, navigates to Settings page)
 

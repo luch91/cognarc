@@ -9,8 +9,8 @@ export default defineConfig({
   // The test suite has async timers (5 s mock, 1.5 s heatmap) that cause
   // cascading timeouts when 4 workers compete for the same Vite server.
   workers: isRemote ? 4 : 1,
-  // Generous timeout: longest test needs ~8 s wait + nav + assertions
-  timeout: 60000,
+  // TRIBE v2 warm latency ~35s + rewrite service ~15s + nav/assertions
+  timeout: 180_000,
   use: {
     baseURL: BASE_URL,
     headless: true,

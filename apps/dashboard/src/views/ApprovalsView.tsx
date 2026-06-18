@@ -1,8 +1,10 @@
-import { useState } from 'react'
+import { useRef, useState } from 'react'
 import { Card } from '../components/Card.js'
 import { ScoreGauge } from '../components/ScoreGauge.js'
 import { Spinner } from '../components/Spinner.js'
 import { useAppContext } from '../context/AppContext.js'
+import { rewrite } from '../api/rewriteApi.js'
+import type { RewriteAlternative } from '../api/rewriteApi.js'
 import type { ActGatedItem } from '../api/types.js'
 
 const STATUS_BADGE: Record<string, string> = {
@@ -11,15 +13,41 @@ const STATUS_BADGE: Record<string, string> = {
   rejected: 'bg-red-100 text-red-700',
 }
 
-const ALT_PREDICTIONS: Record<string, string> = {
-  'Deploy with soft-block warning':    'Predicted Load: 68, Manip: 45',
-  'Request human review only':         'Predicted Load: 68, Manip: 78 (unchanged)',
-  'Auto-remediate urgency language':   'Predicted Load: 52, Manip: 31',
+const CONFIDENCE_BADGE: Record<string, string> = {
+  HIGH:   'bg-emerald-100 text-emerald-700',
+  MEDIUM: 'bg-amber-100 text-amber-700',
+  LOW:    'bg-gray-100 text-gray-500',
 }
 
 const DECISION_DEADLINES: Record<string, string> = {
   'ag1': '5/20/2026, 2:13 PM',
   'ag2': '5/20/2026, 1:23 PM',
+}
+
+// Extract the original copy text from the item for rewriting.
+// For CONTENT_FLAG items the evidence_summary contains the flagged copy.
+// For THRESHOLD_BREACH items we use the description as the prompt text.
+function originalTextFor(item: ActGatedItem): string {
+  if (item.action_type === 'CONTENT_FLAG') {
+    // Pull the quoted/italic copy from evidence_summary if present, else use the whole summary
+    const match = item.evidence_summary.match(/"([^"]+)"/)
+    return match ? match[1]! : item.evidence_summary
+  }
+  return item.description
+}
+
+function copyTypeFor(item: ActGatedItem): 'campaign' | 'prompt' {
+  return item.action_type === 'THRESHOLD_BREACH' ? 'prompt' : 'campaign'
+}
+
+function taxonomyFor(item: ActGatedItem) {
+  const s = item.cognitive_scores
+  return {
+    falseUrgency:           s.manipulation_risk > 60 ? 84 : 20,
+    authorityMimicry:       s.trust < 50 ? 71 : 15,
+    ambiguityExploitation:  s.comprehension < 50 ? 60 : 10,
+    socialProofFabrication: s.manipulation_risk > 70 ? 55 : 10,
+  }
 }
 
 function DecisionModal({
@@ -97,9 +125,114 @@ function DecisionModal({
   )
 }
 
+function AlternativeRow({ index, alt }: { index: number; alt: RewriteAlternative }) {
+  const [copied, setCopied] = useState(false)
+  const d = alt.scoreDelta
+  return (
+    <div className="rounded-lg border border-gray-100 bg-white overflow-hidden">
+      <div className="flex items-center gap-2 px-3 py-2 border-b border-gray-50 bg-gray-50">
+        <span className="w-5 h-5 rounded-full bg-brand-100 text-brand-700 text-xs font-bold flex items-center justify-center shrink-0">
+          {index}
+        </span>
+        <span className={`text-[10px] font-bold px-1.5 py-0.5 rounded-full ${CONFIDENCE_BADGE[alt.confidence]}`}>
+          {alt.confidence}
+        </span>
+        <span className="flex-1" />
+        <button
+          onClick={() => { void navigator.clipboard.writeText(alt.text); setCopied(true); setTimeout(() => setCopied(false), 2000) }}
+          className="text-xs px-2 py-0.5 rounded border border-teal-500 text-teal-600 hover:bg-teal-50 transition-colors"
+        >
+          {copied ? 'Copied ✓' : 'Use this'}
+        </button>
+      </div>
+      <div className="px-3 py-2.5 space-y-1.5">
+        <p className="text-sm text-gray-700">{alt.text}</p>
+        <p className="text-xs text-gray-400 italic">{alt.rationale}</p>
+        <p className="text-xs text-gray-500">
+          Load: <strong>{Math.round(alt.scores.cognitiveLoad)}</strong>
+          {d.cognitiveLoad !== 0 && (
+            <span className={d.cognitiveLoad < 0 ? 'text-emerald-600' : 'text-red-500'}>
+              {' '}({d.cognitiveLoad > 0 ? '+' : ''}{Math.round(d.cognitiveLoad)})
+            </span>
+          )}
+          {' · '}Manip: <strong>{Math.round(alt.scores.manipulationRisk)}</strong>
+          {d.manipulationRisk !== 0 && (
+            <span className={d.manipulationRisk < 0 ? 'text-emerald-600' : 'text-red-500'}>
+              {' '}({d.manipulationRisk > 0 ? '+' : ''}{Math.round(d.manipulationRisk)})
+            </span>
+          )}
+        </p>
+      </div>
+    </div>
+  )
+}
+
 function ActGatedCard({ item }: { item: ActGatedItem }) {
   const [expanded, setExpanded] = useState(false)
   const [modal, setModal] = useState<'approve' | 'reject' | null>(null)
+
+  // Per-item rewrite cache — survives collapse/expand cycles
+  const altCache = useRef<RewriteAlternative[] | null>(null)
+  const [altsLoading, setAltsLoading] = useState(false)
+  const [alternatives, setAlternatives] = useState<RewriteAlternative[] | null>(null)
+  const [altsFallback, setAltsFallback] = useState(false)
+
+  function handleToggle() {
+    const next = !expanded
+    setExpanded(next)
+    if (next && !altCache.current) {
+      void loadAlternatives()
+    }
+  }
+
+  async function loadAlternatives() {
+    setAltsLoading(true)
+    const s = item.cognitive_scores
+    try {
+      const res = await rewrite({
+        originalText: originalTextFor(item),
+        copyType: copyTypeFor(item),
+        scores: {
+          cognitiveLoad: s.cognitive_load,
+          comprehensionConfidence: s.comprehension,
+          emotionalValence: 50,
+          trustCoherence: s.trust,
+          manipulationRisk: s.manipulation_risk,
+          cognitiveRisk: s.cognitive_load > 70 || s.manipulation_risk > 60 ? 'HIGH' : 'MEDIUM',
+        },
+        taxonomy: taxonomyFor(item),
+        workspaceId: 'ws-1',
+      })
+      altCache.current = res.alternatives
+      setAlternatives(res.alternatives)
+    } catch {
+      // Fallback: convert existing string alternatives to RewriteAlternative shape
+      const fb: RewriteAlternative[] = item.alternatives.map((text) => ({
+        text,
+        rationale: 'Fallback alternative — live generation requires the rewrite service.',
+        confidence: 'MEDIUM' as const,
+        scores: {
+          cognitiveLoad: Math.max(20, s.cognitive_load - 15),
+          comprehensionConfidence: Math.min(90, s.comprehension + 10),
+          emotionalValence: 50,
+          trustCoherence: Math.min(80, s.trust + 8),
+          manipulationRisk: Math.max(5, s.manipulation_risk - 35),
+          cognitiveRisk: 'LOW' as const,
+        },
+        scoreDelta: {
+          cognitiveLoad: -15,
+          comprehensionConfidence: 10,
+          trustCoherence: 8,
+          manipulationRisk: -35,
+        },
+      }))
+      altCache.current = fb
+      setAlternatives(fb)
+      setAltsFallback(true)
+    } finally {
+      setAltsLoading(false)
+    }
+  }
 
   return (
     <div className="border border-gray-200 rounded-xl overflow-hidden">
@@ -121,7 +254,7 @@ function ActGatedCard({ item }: { item: ActGatedItem }) {
           )}
         </div>
         <button
-          onClick={() => setExpanded(!expanded)}
+          onClick={handleToggle}
           className="text-xs text-brand-500 hover:text-brand-700 shrink-0 focus:outline-none focus:underline"
           aria-expanded={expanded}
         >
@@ -173,22 +306,41 @@ function ActGatedCard({ item }: { item: ActGatedItem }) {
             <p className="text-sm text-gray-700 font-medium">{item.proposed_action}</p>
           </div>
 
-          {/* Alternatives */}
+          {/* Alternatives Considered */}
           <div>
-            <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-1">Alternatives Considered</p>
-            <ul className="space-y-2">
-              {item.alternatives.map((alt, i) => (
-                <li key={i} className="flex gap-2">
-                  <span className="text-gray-300 mt-0.5 shrink-0">›</span>
-                  <div>
-                    <p className="text-sm text-gray-600">{alt}</p>
-                    {ALT_PREDICTIONS[alt] && (
-                      <p className="text-xs text-gray-400 mt-0.5">{ALT_PREDICTIONS[alt]}</p>
-                    )}
-                  </div>
-                </li>
-              ))}
-            </ul>
+            <div className="flex items-center gap-2 mb-2">
+              <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide">Alternatives Considered</p>
+              {altsLoading && (
+                <span className="text-xs text-gray-400 flex items-center gap-1">
+                  <Spinner />
+                  Generating alternatives…
+                </span>
+              )}
+            </div>
+
+            {altsFallback && (
+              <p className="text-xs text-amber-600 bg-amber-50 border border-amber-100 rounded px-2 py-1 mb-2">
+                (Demo mode — live generation requires rewrite service)
+              </p>
+            )}
+
+            {/* Loading skeleton */}
+            {altsLoading && (
+              <div className="space-y-2">
+                {[0, 1, 2].map((i) => (
+                  <div key={i} className="animate-pulse rounded-lg bg-gray-100 h-14" />
+                ))}
+              </div>
+            )}
+
+            {/* Live or fallback alternatives */}
+            {!altsLoading && alternatives && (
+              <div className="space-y-2">
+                {alternatives.map((alt, i) => (
+                  <AlternativeRow key={i} index={i + 1} alt={alt} />
+                ))}
+              </div>
+            )}
           </div>
 
           {/* Decision if already resolved */}

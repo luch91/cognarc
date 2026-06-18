@@ -95,6 +95,34 @@ export interface ModelProfile {
   benchmark_date: string
 }
 
+export interface VideoMomentFinding {
+  timestamp_start: number
+  timestamp_end: number
+  component: string
+  severity: 'critical' | 'warning' | 'ok'
+  finding: string
+  recommendation: string
+  cognitive_load: number
+  manipulation_risk: number
+  trust_coherence: number
+  attention_engagement: number
+  voiceover_segment?: string
+}
+
+export interface VideoAnalysisResult {
+  filename: string
+  duration_seconds: number
+  analysis_mode: string
+  overall_cognitive_load: number
+  overall_manipulation_risk: number
+  overall_trust_coherence: number
+  overall_attention_engagement: number
+  cognitive_risk: CognitivRisk
+  moment_findings: VideoMomentFinding[]
+  rewrite_candidates: string[]
+  recommended_actions: string[]
+}
+
 export interface CreativeAsset {
   id: string
   name: string
@@ -104,6 +132,8 @@ export interface CreativeAsset {
   cognitive_load?: number
   trust?: number
   risk: CognitivRisk
+  videoAnalysis?: VideoAnalysisResult
+  videoAnalysisDemoMode?: boolean
 }
 
 export interface TrustDriftPoint {

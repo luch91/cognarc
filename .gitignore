@@ -29,3 +29,21 @@ services/cognitive-scoring/tribe-inference/cache/
 
 # Claude Code local settings — may contain tokens/secrets
 .claude/settings.local.json
+.claude/scheduled_tasks.lock
+
+.vercel
+
+# Test artifacts
+test-results/
+
+# Service log files
+*.log
+
+# Python virtual environments
+.venv/
+
+# Temp debug files
+gcloud-where.txt
+
+# Supabase local config (tokens live in env vars, not here)
+supabase/.temp/

@@ -278,6 +278,18 @@ Update this section as prompts are completed:
 - [x] P-015 · Fine-Tuning Pipeline
 - [x] P-016 · Integration Test Suite
 - [x] P-017 · Landing Page
+- [x] LLM-B01 · Cognitive Rewrite Service (Groq Qwen3-32b/8b + OpenRouter Qwen3-235b, port 3006)
+- [x] LLM-B02 · TypeScript Rewrite Client (`packages/cognarc-types/src/rewrite-client.ts`)
+- [x] LLM-B03 · Message Clarity Scorer UI (Growth view)
+- [x] LLM-B04 · Live Rewrites in CI/CD Gate (Engineer view)
+- [x] LLM-B05 · Live Rewrites in Act-Gated Decision Package (Approvals view)
+- [x] LLM-B06 · Video Cognitive Analysis Engine (FastAPI mock, port 3007)
+- [x] LLM-B07 · Video Cognitive Report UI (Growth view — inline expand, voiceover rewrite flow)
+- [x] LLM-B08 · Video Findings wired to Safety Feed + Act-Gated queue
+- [x] LLM-C01 · Provider Adapter (Groq default / Anthropic upgrade path via `REWRITE_PROVIDER`)
+- [x] LLM-C06 · Prompt Regression Monitor clickable rows (score history, diff, impact summary, long_form rewrites)
+- [x] LLM-C07 · Video Analysis Service live (CognitiveScoreCard in VideoReport, voiceover loading text fix, PostHog tracking stubs, Supabase video_report persistence)
+- [x] LLM-C08 · Wire video findings → Supabase (audit_log + act_gated_queue inserts, evaluation_queue hydration from Supabase on mount)
 
 ---
 

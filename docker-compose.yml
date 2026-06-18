@@ -132,6 +132,39 @@ services:
       timeout: 5s
       retries: 5
 
+  cognitive-rewrite:
+    build:
+      context: services/cognitive-rewrite
+      dockerfile: Dockerfile
+    ports:
+      - "3006:3006"
+    environment:
+      GROQ_API_KEY: ${GROQ_API_KEY}
+      OPENROUTER_API_KEY: ${OPENROUTER_API_KEY}
+      COGNITIVE_SCORING_URL: http://cognitive-scoring:3001
+    depends_on:
+      cognitive-scoring:
+        condition: service_healthy
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:3006/health')"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  video-analysis:
+    build:
+      context: services/video-analysis
+      dockerfile: Dockerfile
+    ports:
+      - "3007:3007"
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:3007/health')"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
   api-gateway:
     build:
       context: .
@@ -146,12 +179,16 @@ services:
       ANALYTICS_CONNECTORS_URL: http://analytics-connectors:3003
       GUARDRAIL_ENGINE_URL: http://guardrail-engine:3004
       TRUST_GRADIENT_URL: http://trust-gradient:3005
+      COGNITIVE_REWRITE_URL: http://cognitive-rewrite:3006
+      VIDEO_ANALYSIS_URL: http://video-analysis:3007
     depends_on:
       - cognitive-scoring
       - behavioral-sdk
       - analytics-connectors
       - guardrail-engine
       - trust-gradient
+      - cognitive-rewrite
+      - video-analysis
     restart: unless-stopped
 
 volumes:

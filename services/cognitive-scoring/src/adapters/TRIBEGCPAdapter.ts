@@ -126,7 +126,9 @@ export class TRIBEGCPAdapter extends TRIBEAdapter {
     // On Windows, gcloud is a .cmd file — must be invoked via cmd.exe /c.
     const { spawnSync } = await import('child_process')
 
+    const home = process.env.USERPROFILE ?? process.env.HOME ?? ''
     const GCLOUD_CANDIDATES = [
+      `${home}\\AppData\\Local\\Google\\Cloud SDK\\google-cloud-sdk\\bin\\gcloud.cmd`,
       'C:\\Program Files (x86)\\Google\\Cloud SDK\\google-cloud-sdk\\bin\\gcloud.cmd',
       'C:\\Program Files\\Google\\Cloud SDK\\google-cloud-sdk\\bin\\gcloud.cmd',
       'gcloud',
@@ -136,8 +138,8 @@ export class TRIBEGCPAdapter extends TRIBEAdapter {
     for (const gcloud of GCLOUD_CANDIDATES) {
       const isCmd = gcloud.endsWith('.cmd')
       const result = isCmd
-        ? spawnSync('cmd.exe', ['/c', gcloud, 'auth', 'print-identity-token'], { encoding: 'utf8', timeout: 10_000, windowsHide: true })
-        : spawnSync(gcloud, ['auth', 'print-identity-token'], { encoding: 'utf8', timeout: 10_000, windowsHide: true })
+        ? spawnSync('cmd.exe', ['/c', gcloud, 'auth', 'print-identity-token'], { encoding: 'utf8', timeout: 15_000, windowsHide: true })
+        : spawnSync(gcloud, ['auth', 'print-identity-token'], { encoding: 'utf8', timeout: 15_000, windowsHide: true })
       const out = result.stdout?.trim()
       if (out && out.startsWith('ey')) {
         token = out
