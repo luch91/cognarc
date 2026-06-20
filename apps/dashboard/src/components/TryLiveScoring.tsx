@@ -102,7 +102,11 @@ export function TryLiveScoring() {
 
         {state === 'error' && error && (
           <div className="text-xs text-red-500 bg-red-50 px-3 py-2 rounded-lg">
-            {error.includes('429') ? 'Trial rate limit reached. Come back tomorrow or contact us for a full account.' : error}
+            {error.includes('429')
+              ? 'Trial rate limit reached. Come back tomorrow or contact us for a full account.'
+              : error.includes('504') || error.includes('timeout') || error.includes('Timeout')
+                ? 'Cloud Run cold start timed out. The GPU instance is warming up — please try again in 1–2 minutes.'
+                : error}
           </div>
         )}
 

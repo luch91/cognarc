@@ -3,7 +3,7 @@
   "outputDirectory": "apps/dashboard/dist",
   "functions": {
     "api/score.ts": {
-      "maxDuration": 120
+      "maxDuration": 300
     }
   },
   "headers": [

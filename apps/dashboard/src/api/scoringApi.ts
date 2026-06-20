@@ -40,6 +40,7 @@ export async function scoreTextRemote(text: string): Promise<LiveScoreResult> {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ stimulus_type: 'text', content: text, workspace_id: 'trial' }),
+    signal: AbortSignal.timeout(310_000),
   })
   if (!res.ok) {
     const body = await res.text()
