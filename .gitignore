@@ -47,3 +47,5 @@ gcloud-where.txt
 
 # Supabase local config (tokens live in env vars, not here)
 supabase/.temp/
+
+.vercel

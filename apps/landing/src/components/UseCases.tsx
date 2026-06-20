@@ -110,11 +110,11 @@ const TABS = [
     label: 'Designer',
     icon: '🎨',
     headline: 'Cognitive evidence before user research, not from it',
-    sub: 'Get fMRI-grounded cognitive scores on any design in under 5 minutes. No participants needed.',
+    sub: 'Get cognitive scores on any design in under 5 minutes. No participants needed.',
     features: [
-      { name: 'Zero-Traffic A/B Engine', desc: 'Compare variants without live traffic. Results in 5 minutes using TRIBE v2 simulation.' },
+      { name: 'Zero-Traffic A/B Engine', desc: 'Compare variants without live traffic. Results in 5 minutes using cognitive simulation.' },
       { name: 'Onboarding Load Curve', desc: 'Maps cognitive load across each step of a flow. Reveals where users drop before they do.' },
-      { name: 'Heatmap', desc: 'Attention and confusion heatmap based on predicted neural activation patterns.' },
+      { name: 'Heatmap', desc: 'Attention and confusion heatmap based on predicted cognitive activation patterns.' },
     ],
     visual: (
       <div className="space-y-3">

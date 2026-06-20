@@ -31,7 +31,7 @@ pnpm --filter @cognarc/dashboard dev
 
 The dashboard connects to `cognitive-scoring` on `localhost:3001` via a Vite proxy (`/api/score`).
 
-For live TRIBE v2 scores:
+For live cognitive scores via GCP Cloud Run:
 1. Start the scoring service: `pnpm --filter @cognarc/cognitive-scoring dev`
    (with `COGNARC_SCORING_ENGINE=tribe-gcp` in `services/cognitive-scoring/.env`)
 2. Open `http://localhost:5173`
@@ -44,7 +44,7 @@ Cold start on Cloud Run: ~5 min. Warm requests: ~30s.
 ## Copy Health Checker (Growth View)
 
 Manager-friendly copy scorer built on `CognitiveScoreCard`. Paste any copy to:
-1. Score against TRIBE cognitive dimensions (comprehension, load, trust, manipulation risk)
+1. Score against cognitive dimensions (comprehension, load, trust, manipulation risk)
 2. See a **radar chart** with four plain-English axes: Readability, Clarity, Trust, Safety
 3. Get a **CLEAR / NEEDS REVIEW / FLAGGED** health badge with a plain-English verdict
 4. Read four question-based rows: "How hard is this to read?", "Will your audience understand it?", etc.
@@ -72,7 +72,7 @@ Falls back to mock alternatives with a console warning if the service is unavail
 `e2e/rewrite-features.spec.ts` covers:
 - Copy Health Checker — scoring, radar chart, health badge, rewrite suggestions, before/after comparison
 - CI/CD Gate rewrites — loading state, cache hit on re-expand
-- Act-Gated decision package — TRIBE evidence, loading skeleton, score deltas
+- Act-Gated decision package — cognitive evidence, loading skeleton, score deltas
 - Video Cognitive Report — View Report button, findings panel, voiceover rewrite, Close
 
 ```bash
@@ -134,13 +134,29 @@ VITE_SUPABASE_ANON_KEY=<anon key from Supabase dashboard>
 
 If Supabase env vars are missing, the app works with AppContext-only (in-memory) persistence.
 
+## Fix Pack 5 Features
+
+- **Creative Eval Queue** — View Report buttons with CognitiveScoreCard expansion for scored items
+- **Variant Ranker** — Multi-variant copy comparison with headline/CTA/email tabs, cognitive scoring, and ranked output
+- **Remediation Findings** — Clickable rows in Safety view expand to show detail panels with evidence and recommendations
+- **Manual Safety Submission** — Form to submit suspected manipulation patterns directly from Safety view
+- **Prompt Registry** — Add Prompt modal with 3 tabs (Paste, Import, Template), prompts scored via live cognitive scoring
+- **GitHub Connections** — Add Repository modal in Settings, disconnect button on connected repos
+- **LLM Connections** — Disconnect and Test buttons on connected LLM providers
+- **Eval Platforms** — API key-based connection flow (replaces OAuth), Configure buttons for analytics connectors
+
+### Supabase Tables (Fix Pack 5)
+
+Run `infrastructure/supabase/fix-pack-5-schema.sql` in the Supabase SQL Editor:
+- `variants`, `remediation_findings`, `prompt_registry`, `github_connections`, `llm_connections`, `cicd_evaluations`
+
 ## Try Live Scoring (Trial Users)
 
-A "Try Live TRIBE v2 Scoring" card appears on the Workspace Overview when a scoring proxy URL is configured.
-Trial users can paste any text and score it against TRIBE v2 via a Vercel serverless proxy that handles GCP auth.
+A "Try Live Cognitive Scoring" card appears on the Workspace Overview when a scoring proxy URL is configured.
+Trial users can paste any text and score it via a Vercel serverless proxy that handles GCP auth.
 
 The proxy lives in `services/scoring-proxy/` and is deployed to Vercel with:
-- `GCP_TRIBE_ENDPOINT` — Cloud Run URL
+- `GCP_SCORING_ENDPOINT` — Cloud Run URL
 - `GCP_SERVICE_ACCOUNT_KEY` — service account JSON (as a string env var)
 - `RATE_LIMIT_MAX` — scores per IP per day (default: 10)
 

@@ -20,12 +20,12 @@ const PILLARS = [
           d="M9.663 17h4.673M12 3v1m6.364 1.636l-.707.707M21 12h-1M4 12H3m3.343-5.657l-.707-.707m2.828 9.9a5 5 0 117.072 0l-.548.547A3.374 3.374 0 0014 18.469V19a2 2 0 11-4 0v-.531c0-.895-.356-1.754-.988-2.386l-.548-.547z" />
       </svg>
     ),
-    title: 'TRIBE v2 Powered',
-    subtitle: 'Brain science, not heuristics',
-    body: 'Built on Meta AI\'s TRIBE v2 foundation model — trained on 1,000+ hours of fMRI data across 720 subjects. Scores map directly to cortical activity: dlPFC for load, Wernicke\'s for comprehension, amygdala for emotional valence.',
+    title: 'Cognitive Intelligence',
+    subtitle: 'Science-backed, not guesswork',
+    body: 'Scores every AI output across five cognitive dimensions — load, comprehension, trust, emotional valence, and manipulation risk. Evidence-based evaluation that goes beyond heuristics and sentiment analysis.',
     color: 'violet',
-    stat: '1,000+hrs',
-    statLabel: 'fMRI training data',
+    stat: '5',
+    statLabel: 'Cognitive dimensions scored',
   },
   {
     icon: (
@@ -108,16 +108,12 @@ export function HowItWorks() {
           })}
         </div>
 
-        {/* Architecture callout */}
+        {/* Trust callout */}
         <div className="mt-12 card-glass rounded-2xl p-6 border border-white/[0.06]">
-          <div className="flex flex-wrap items-center gap-4 justify-center text-center sm:text-left">
+          <div className="flex flex-wrap items-center gap-4 justify-center text-center">
             <div className="text-slate-400 text-sm">
-              <span className="text-white font-medium">Architecture rule:</span>{' '}
-              Every cognitive score flows from one place —{' '}
-              <code className="font-mono text-teal-400 bg-teal-500/10 px-1.5 py-0.5 rounded text-xs">
-                services/cognitive-scoring POST /score
-              </code>.
-              {' '}Swapping mock for TRIBE v2 is a one-line config change.
+              <span className="text-white font-medium">Built for trust:</span>{' '}
+              Immutable audit log, append-only by design. Every score, every decision, every human approval — permanently recorded and tamper-proof.
             </div>
           </div>
         </div>

@@ -263,7 +263,7 @@ function buildDiff(baseline: string, current: string): { line: string; type: 're
   return result
 }
 
-function RegressionDetailPanel({ baseline }: { baseline: PromptBaseline }) {
+function RegressionDetailPanel({ baseline, onScoreUpdate }: { baseline: PromptBaseline; onScoreUpdate?: (id: string, cl: number, cc: number, status: string) => void }) {
   const detail = REGRESSION_DETAIL[baseline.id]
   const [rewrites, setRewrites] = useState<RewriteAlternative[] | null>(null)
   const [rewriteLoading, setRewriteLoading] = useState(false)
@@ -271,6 +271,7 @@ function RegressionDetailPanel({ baseline }: { baseline: PromptBaseline }) {
   const rewriteCache = useRef<RewriteAlternative[] | null>(null)
   const [baselineReset, setBaselineReset] = useState(false)
   const [resetConfirm, setResetConfirm] = useState(false)
+  const [reEvalLoading, setReEvalLoading] = useState(false)
 
   if (!detail) return null
   const safeDetail = detail  // narrowed — guaranteed non-null below this point
@@ -477,16 +478,21 @@ function RegressionDetailPanel({ baseline }: { baseline: PromptBaseline }) {
           Export history
         </button>
         <button
+          disabled={reEvalLoading}
           onClick={() => {
             void (async () => {
+              setReEvalLoading(true)
               try {
-                await scoreText(safeDetail.currentPrompt, 'ws-1')
+                const scores = await scoreText(safeDetail.currentPrompt, 'ws-1')
+                const status = scores.cognitive_load > 75 || scores.manipulation_risk > 40 ? 'block' : scores.cognitive_load > 55 || scores.manipulation_risk > 25 ? 'warn' : 'ok'
+                onScoreUpdate?.(baseline.id, scores.cognitive_load, scores.comprehension_confidence, status)
               } catch { /* ignore */ }
+              setReEvalLoading(false)
             })()
           }}
-          className="text-xs px-2 py-1 rounded border border-teal-500 text-teal-600 hover:bg-teal-50 transition-colors"
+          className="text-xs px-2 py-1 rounded border border-teal-500 text-teal-600 hover:bg-teal-50 transition-colors disabled:opacity-50"
         >
-          Re-evaluate
+          {reEvalLoading ? 'Scoring…' : 'Re-evaluate'}
         </button>
         {!baselineReset && !resetConfirm && (
           <button onClick={() => setResetConfirm(true)} className="text-xs px-2 py-1 rounded border border-gray-200 text-gray-500 hover:bg-gray-50 transition-colors">
@@ -756,7 +762,9 @@ export function EngineerView() {
                       {isOpen && (
                         <tr>
                           <td colSpan={8} className="p-0">
-                            <RegressionDetailPanel baseline={b} />
+                            <RegressionDetailPanel baseline={b} onScoreUpdate={(id, cl, cc, status) => {
+                              setAddedPrompts((prev) => prev.map((p) => p.id === id ? { ...p, cognitive_load: cl, comprehension: cc, status: status as 'ok' | 'warn' | 'block' } : p))
+                            }} />
                           </td>
                         </tr>
                       )}

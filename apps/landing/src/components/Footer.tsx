@@ -86,11 +86,11 @@ export function Footer() {
         {/* Bottom bar */}
         <div className="pt-8 border-t border-white/[0.06] flex flex-col sm:flex-row items-center justify-between gap-4">
           <p className="text-slate-500 text-sm">
-            © 2026 CognArc. Powered by TRIBE v2.
+            © 2026 CognArc. All rights reserved.
           </p>
           <div className="flex items-center gap-2 text-xs text-slate-500">
             <span className="w-1.5 h-1.5 rounded-full bg-teal-400 animate-pulse" />
-            <span>fMRI-grounded · CC-BY-NC-4.0</span>
+            <span>Cognitive AI evaluation platform</span>
           </div>
         </div>
       </div>

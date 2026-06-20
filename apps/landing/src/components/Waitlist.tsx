@@ -155,10 +155,8 @@ export function Waitlist() {
 
         {/* Trust badge */}
         <div className="mt-8 flex flex-wrap items-center justify-center gap-2 text-xs text-slate-500">
-          <span>Backed by</span>
-          <span className="text-slate-400 font-medium">TRIBE v2 · Meta AI Research</span>
-          <span>·</span>
-          <span>CC-BY-NC-4.0 license</span>
+          <span>Built for</span>
+          <span className="text-slate-400 font-medium">AI Engineers · Product Teams · Safety Researchers</span>
         </div>
       </div>
     </section>

@@ -22,11 +22,11 @@ const TIERS = [
   {
     name: 'Growth',
     badge: null,
-    price: '$799',
-    priceSub: 'per month',
-    cta: 'Start Trial',
+    price: 'Coming Soon',
+    priceSub: '',
+    cta: 'Join Waitlist',
     ctaStyle: 'btn-secondary',
-    href: APP_URL,
+    href: null,
     features: [
       'Unlimited endpoints',
       'Full Trust Gradient Engine',
@@ -42,9 +42,9 @@ const TIERS = [
   {
     name: 'Business',
     badge: 'Most Popular',
-    price: '$3,499',
-    priceSub: 'per month',
-    cta: 'Contact Sales',
+    price: 'Coming Soon',
+    priceSub: '',
+    cta: 'Join Waitlist',
     ctaStyle: 'btn-primary',
     href: null,
     features: [
@@ -151,7 +151,7 @@ export function Pricing() {
 
         <p className="text-center text-slate-500 text-sm mt-10">
           All plans include the immutable audit log, kill switch, and policy-as-code governance.
-          <br />Pricing effective at general availability. Early access via waitlist.
+          <br />Pricing announced at general availability. Early access via waitlist.
         </p>
       </div>
     </section>

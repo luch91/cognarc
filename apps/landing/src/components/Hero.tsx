@@ -2,6 +2,8 @@ import { useEffect, useRef, useState } from 'react'
 
 const APP_URL = 'https://cognarc-dashboard.vercel.app'
 
+/* ---------- Intelligence Loop (compact) ---------- */
+
 const LOOP_STAGES = [
   { label: 'Sense', desc: 'AI outputs, UI changes, assets', color: '#14b8a6' },
   { label: 'Perceive', desc: 'Cognitive signals extracted', color: '#2dd4bf' },
@@ -12,7 +14,7 @@ const LOOP_STAGES = [
   { label: 'Learn', desc: 'Baseline updated, loop closes', color: '#14b8a6' },
 ]
 
-function IntelligenceLoop() {
+function IntelligenceLoopCompact() {
   const [activeIdx, setActiveIdx] = useState(0)
   const timerRef = useRef<ReturnType<typeof setInterval> | null>(null)
 
@@ -23,129 +25,78 @@ function IntelligenceLoop() {
     return () => { if (timerRef.current) clearInterval(timerRef.current) }
   }, [])
 
-  const cx = 200
-  const cy = 160
-  const rx = 165
-  const ry = 130
-
   return (
-    <div className="relative w-full max-w-[420px] mx-auto">
-      {/* Glow backdrop */}
-      <div className="absolute inset-0 rounded-3xl bg-gradient-to-br from-teal-500/10 via-transparent to-violet-600/5 blur-2xl" />
-
-      <div className="relative card-glass p-6 rounded-3xl">
-        <div className="text-center mb-3">
-          <span className="section-label">Continuous Intelligence Loop</span>
-        </div>
-
-        <svg viewBox="0 0 400 320" className="w-full" aria-label="CognArc 7-stage intelligence loop diagram">
-          {/* Ellipse path for labels */}
-          <defs>
-            <marker id="arrowTeal" markerWidth="6" markerHeight="6" refX="3" refY="3" orient="auto">
-              <path d="M0,0 L6,3 L0,6 Z" fill="#14b8a6" opacity="0.7" />
-            </marker>
-          </defs>
-
-          {/* Connector ring */}
-          <ellipse
-            cx={cx} cy={cy} rx={rx} ry={ry}
-            fill="none"
-            stroke="url(#ringGrad)"
-            strokeWidth="1.5"
-            strokeDasharray="6 4"
-            opacity="0.3"
-          />
-          <defs>
-            <linearGradient id="ringGrad" x1="0%" y1="0%" x2="100%" y2="0%">
-              <stop offset="0%" stopColor="#14b8a6" />
-              <stop offset="50%" stopColor="#8b5cf6" />
-              <stop offset="100%" stopColor="#14b8a6" />
-            </linearGradient>
-          </defs>
-
-          {LOOP_STAGES.map((stage, i) => {
-            const angle = (i / LOOP_STAGES.length) * 2 * Math.PI - Math.PI / 2
-            const nx = cx + rx * Math.cos(angle)
-            const ny = cy + ry * Math.sin(angle)
-            const isActive = i === activeIdx
-
-            // Connector to next node
-            const nextAngle = ((i + 1) / LOOP_STAGES.length) * 2 * Math.PI - Math.PI / 2
-            const nnx = cx + rx * Math.cos(nextAngle)
-            const nny = cy + ry * Math.sin(nextAngle)
-
-            return (
-              <g key={stage.label}>
-                {/* Connector arc indicator */}
-                {isActive && (
-                  <line
-                    x1={nx} y1={ny} x2={nnx} y2={nny}
-                    stroke="#14b8a6"
-                    strokeWidth="2"
-                    opacity="0.6"
-                    strokeDasharray="4 3"
-                    markerEnd="url(#arrowTeal)"
-                  />
-                )}
-
-                {/* Node circle */}
-                <circle
-                  cx={nx} cy={ny} r={isActive ? 22 : 16}
-                  fill={isActive ? `${stage.color}22` : '#ffffff08'}
-                  stroke={isActive ? stage.color : '#ffffff18'}
-                  strokeWidth={isActive ? 2 : 1}
-                  style={{ transition: 'all 0.3s ease' }}
-                />
-                {isActive && (
-                  <circle
-                    cx={nx} cy={ny} r={28}
-                    fill="none"
-                    stroke={stage.color}
-                    strokeWidth="1"
-                    opacity="0.3"
-                  />
-                )}
-
-                {/* Label */}
-                <text
-                  x={nx} y={ny + 1}
-                  textAnchor="middle"
-                  dominantBaseline="middle"
-                  fontSize={isActive ? '9' : '8'}
-                  fontWeight={isActive ? '700' : '400'}
-                  fill={isActive ? stage.color : '#94a3b8'}
-                  style={{ transition: 'all 0.3s ease', fontFamily: 'Inter, sans-serif' }}
-                >
-                  {stage.label}
-                </text>
-              </g>
-            )
-          })}
-
-          {/* Center label */}
-          <text x={cx} y={cy - 12} textAnchor="middle" fontSize="11" fontWeight="600" fill="#f8fafc" fontFamily="Inter, sans-serif">
-            TRIBE v2
-          </text>
-          <text x={cx} y={cy + 5} textAnchor="middle" fontSize="9" fill="#64748b" fontFamily="Inter, sans-serif">
-            fMRI · Neural
-          </text>
-          <circle cx={cx} cy={cy} r={40} fill="none" stroke="#14b8a622" strokeWidth="1.5" />
-        </svg>
-
-        {/* Active stage description */}
-        <div className="text-center mt-1 h-8">
-          <p className="text-xs text-slate-400 transition-all duration-300">
-            <span className="font-semibold" style={{ color: LOOP_STAGES[activeIdx]!.color }}>
-              {LOOP_STAGES[activeIdx]!.label}
-            </span>
-            {' — '}
-            {LOOP_STAGES[activeIdx]!.desc}
-          </p>
-        </div>
-      </div>
+    <div className="flex items-center gap-1.5 justify-center mt-5">
+      {LOOP_STAGES.map((stage, i) => {
+        const isActive = i === activeIdx
+        return (
+          <div key={stage.label} className="flex items-center gap-1.5">
+            <div
+              className="flex items-center gap-1 px-2 py-1 rounded-full transition-all duration-300"
+              style={{
+                backgroundColor: isActive ? `${stage.color}20` : 'transparent',
+                border: `1px solid ${isActive ? stage.color : 'transparent'}`,
+              }}
+            >
+              <div
+                className="w-1.5 h-1.5 rounded-full transition-all duration-300"
+                style={{ backgroundColor: isActive ? stage.color : '#475569' }}
+              />
+              <span
+                className="text-[9px] font-medium transition-all duration-300 hidden sm:inline"
+                style={{ color: isActive ? stage.color : '#64748b' }}
+              >
+                {stage.label}
+              </span>
+            </div>
+            {i < LOOP_STAGES.length - 1 && (
+              <svg className="w-2 h-2 text-slate-700 hidden sm:block" viewBox="0 0 8 8" fill="none">
+                <path d="M2 4h4M5 2l2 2-2 2" stroke="currentColor" strokeWidth="1" />
+              </svg>
+            )}
+          </div>
+        )
+      })}
     </div>
   )
 }
+
+/* ---------- Cycling region label ---------- */
+
+const REGIONS = [
+  { label: 'Cognitive Load', color: '#14b8a6' },
+  { label: 'Comprehension', color: '#2dd4bf' },
+  { label: 'Emotional Valence', color: '#f59e0b' },
+  { label: 'Trust Coherence', color: '#5eead4' },
+  { label: 'Manipulation Risk', color: '#8b5cf6' },
+]
+
+function CyclingRegionLabel() {
+  const [idx, setIdx] = useState(0)
+  const timerRef = useRef<ReturnType<typeof setInterval> | null>(null)
+
+  useEffect(() => {
+    timerRef.current = setInterval(() => {
+      setIdx((i) => (i + 1) % REGIONS.length)
+    }, 2200)
+    return () => { if (timerRef.current) clearInterval(timerRef.current) }
+  }, [])
+
+  const region = REGIONS[idx]!
+
+  return (
+    <div className="text-center mt-3">
+      <span
+        className="text-xs font-semibold tracking-wide transition-all duration-500"
+        style={{ color: region.color }}
+      >
+        ● Analyzing: {region.label}
+      </span>
+    </div>
+  )
+}
+
+/* ---------- Hero Section ---------- */
 
 export function Hero() {
   return (
@@ -164,7 +115,7 @@ export function Hero() {
           <div className="animate-[slideUp_0.7s_ease-out_forwards]">
             <div className="inline-flex items-center gap-2 bg-teal-500/10 border border-teal-500/20 rounded-full px-4 py-1.5 mb-8">
               <span className="w-1.5 h-1.5 rounded-full bg-teal-400 animate-pulse" />
-              <span className="text-teal-400 text-xs font-medium">Powered by TRIBE v2 · Meta AI Research</span>
+              <span className="text-teal-400 text-xs font-medium">Cognitive AI Evaluation Platform</span>
             </div>
 
             <h1 className="text-4xl sm:text-5xl lg:text-[3.25rem] font-bold text-white leading-[1.12] tracking-tight mb-6">
@@ -207,9 +158,9 @@ export function Hero() {
             {/* Social proof */}
             <div className="flex flex-wrap items-center gap-x-6 gap-y-2">
               {[
-                { label: 'TRIBE v2', sub: 'Foundation model' },
-                { label: '1,000+ hrs', sub: 'fMRI training data' },
-                { label: '720 subjects', sub: 'Neural dataset' },
+                { label: 'Real-time', sub: 'Continuous scoring' },
+                { label: '5 dimensions', sub: 'Cognitive analysis' },
+                { label: '100% auditable', sub: 'Every decision logged' },
               ].map(({ label, sub }) => (
                 <div key={label} className="flex items-center gap-2">
                   <div className="w-1 h-1 rounded-full bg-teal-400" />
@@ -222,27 +173,53 @@ export function Hero() {
             </div>
           </div>
 
-          {/* Right: animated loop */}
+          {/* Right: animated brain cortex image */}
           <div className="animate-[fadeIn_1s_ease-out_0.3s_forwards] opacity-0">
-            <IntelligenceLoop />
+            <div className="relative w-full max-w-[480px] mx-auto">
+              {/* Ambient glow behind brain */}
+              <div className="absolute inset-0 rounded-3xl bg-gradient-to-br from-teal-500/15 via-transparent to-violet-600/10 blur-3xl" />
+              <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-72 h-72 bg-teal-500/8 rounded-full blur-[100px]" />
 
-            {/* Score preview cards */}
-            <div className="grid grid-cols-3 gap-3 mt-6">
-              {[
-                { metric: 'Cognitive Load', value: 34, color: '#14b8a6', label: 'LOW' },
-                { metric: 'Manipulation Risk', value: 8, color: '#10b981', label: 'SAFE' },
-                { metric: 'Trust Coherence', value: 82, color: '#14b8a6', label: 'HIGH' },
-              ].map(({ metric, value, color, label }) => (
-                <div key={metric} className="card-glass p-3 rounded-xl text-center">
-                  <div className="text-2xl font-bold mb-0.5" style={{ color }}>{value}</div>
-                  <div className="text-[10px] text-slate-500 leading-tight">{metric}</div>
-                  <div className="mt-1.5 text-[9px] font-semibold px-1.5 py-0.5 rounded-full inline-block"
-                    style={{ color, backgroundColor: `${color}20` }}>
-                    {label}
-                  </div>
+              {/* Brain GIF */}
+              <div className="relative">
+                <div className="relative rounded-2xl overflow-hidden">
+                  <img
+                    src="/brain-hero.gif"
+                    alt="Animated neural network — glowing cognitive pathways"
+                    className="w-full h-auto"
+                    loading="eager"
+                  />
+                  {/* Teal color overlay to shift the blue toward CognArc's palette */}
+                  <div className="absolute inset-0 bg-gradient-to-br from-teal-500/10 via-transparent to-teal-400/5 mix-blend-overlay pointer-events-none" />
+                  {/* Vignette edges */}
+                  <div className="absolute inset-0 shadow-[inset_0_0_80px_30px_rgba(2,6,23,0.7)] pointer-events-none" />
                 </div>
-              ))}
+
+                {/* Cycling region label */}
+                <CyclingRegionLabel />
+              </div>
+
+              {/* Score readout cards */}
+              <div className="grid grid-cols-3 gap-3 mt-4 px-2">
+                {[
+                  { metric: 'Cognitive Load', value: 34, color: '#14b8a6', label: 'LOW' },
+                  { metric: 'Manipulation Risk', value: 8, color: '#10b981', label: 'SAFE' },
+                  { metric: 'Trust Coherence', value: 82, color: '#14b8a6', label: 'HIGH' },
+                ].map(({ metric, value, color, label }) => (
+                  <div key={metric} className="card-glass p-3 rounded-xl text-center">
+                    <div className="text-2xl font-bold mb-0.5" style={{ color }}>{value}</div>
+                    <div className="text-[10px] text-slate-500 leading-tight">{metric}</div>
+                    <div className="mt-1.5 text-[9px] font-semibold px-1.5 py-0.5 rounded-full inline-block"
+                      style={{ color, backgroundColor: `${color}20` }}>
+                      {label}
+                    </div>
+                  </div>
+                ))}
+              </div>
             </div>
+
+            {/* Intelligence loop */}
+            <IntelligenceLoopCompact />
           </div>
         </div>
       </div>
