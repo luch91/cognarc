@@ -56,6 +56,8 @@ interface AppState {
   hasConnectedEndpoint: boolean
   latestLiveScore: HealthPoint | null
   liveScoreTrend: HealthPoint[]
+  lastLiveScoreResult: LiveScoreResult | null
+  lastLiveScoreText: string
 }
 
 // ── Context value ────────────────────────────────────────────────────────────
@@ -72,7 +74,7 @@ interface AppContextValue extends AppState {
   setKillSwitch: (active: boolean) => void
   setKillSwitchBanner: (visible: boolean) => void
   setHasConnectedEndpoint: (value: boolean) => void
-  recordLiveScore: (result: LiveScoreResult) => void
+  recordLiveScore: (result: LiveScoreResult, text?: string) => void
 }
 
 // ── Initial connectors (merged from SettingsView + PMView) ───────────────────
@@ -97,6 +99,8 @@ const INITIAL_STATE: AppState = {
   hasConnectedEndpoint: false,
   latestLiveScore: null,
   liveScoreTrend: [],
+  lastLiveScoreResult: null,
+  lastLiveScoreText: '',
 }
 
 const AppContext = createContext<AppContextValue>({
@@ -129,6 +133,8 @@ export function AppProvider({ children }: { children: ReactNode }) {
   const [hasConnectedEndpoint, setHasConnectedEndpointState] = useState(false)
   const [latestLiveScore, setLatestLiveScore] = useState<HealthPoint | null>(null)
   const [liveScoreTrend, setLiveScoreTrend] = useState<HealthPoint[]>([])
+  const [lastLiveScoreResult, setLastLiveScoreResult] = useState<LiveScoreResult | null>(null)
+  const [lastLiveScoreText, setLastLiveScoreText] = useState('')
 
   // C07: hydrate persisted video reports from Supabase on mount
   useEffect(() => {
@@ -246,7 +252,9 @@ export function AppProvider({ children }: { children: ReactNode }) {
     setHasConnectedEndpointState(value)
   }
 
-  function recordLiveScore(result: LiveScoreResult) {
+  function recordLiveScore(result: LiveScoreResult, text?: string) {
+    setLastLiveScoreResult(result)
+    if (text !== undefined) setLastLiveScoreText(text)
     const point: HealthPoint = {
       date: new Date().toLocaleTimeString(),
       cognitive_load: result.cognitive_load,
@@ -285,7 +293,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
     <AppContext.Provider value={{
       evaluationQueue, auditLog, actGatedQueue, agentFeed, manipulationFeed,
       connectors, thresholds, killSwitchActive, killSwitchBanner, hasConnectedEndpoint,
-      latestLiveScore, liveScoreTrend,
+      latestLiveScore, liveScoreTrend, lastLiveScoreResult, lastLiveScoreText,
       addToEvaluationQueue, updateEvaluationItem, addAuditEntry, addActGatedItem,
       resolveActGatedItem, addAgentFeedEntry, addManipulationFeedEntry, updateConnector, updateThresholds,
       setKillSwitch, setKillSwitchBanner, setHasConnectedEndpoint, recordLiveScore,

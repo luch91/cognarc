@@ -18,6 +18,11 @@ export default defineConfig({
         rewrite: (path) => path.replace(/^\/api\/health/, '/health'),
         changeOrigin: true,
       },
+      '/api/rewrite': {
+        target: 'http://localhost:3006',
+        rewrite: (path) => path.replace(/^\/api\/rewrite/, '/rewrite'),
+        changeOrigin: true,
+      },
       '/api/extract': {
         target: 'http://localhost:3008',
         rewrite: (path) => path.replace(/^\/api\/extract/, '/extract'),

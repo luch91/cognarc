@@ -46,6 +46,7 @@ export interface PromptBaseline {
   delta_cc: number
   last_evaluated: string
   status: 'ok' | 'warn' | 'block'
+  promptText?: string
 }
 
 export interface CicdRun {

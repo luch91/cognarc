@@ -3,7 +3,7 @@ import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { useVirtualizer } from '@tanstack/react-virtual'
 import { ResponsiveContainer, LineChart, Line, XAxis, YAxis, Tooltip, ReferenceLine } from 'recharts'
 import { fetchCicdRuns, fetchPromptBaselines } from '../api/mock.js'
-import { scoreText } from '../api/scoringApi.js'
+import { scoreTextRemote } from '../api/scoringApi.js'
 import { Card } from '../components/Card.js'
 import { Spinner } from '../components/Spinner.js'
 import { ZoneBadge } from '../components/ZoneBadge.js'
@@ -264,7 +264,15 @@ function buildDiff(baseline: string, current: string): { line: string; type: 're
 }
 
 function RegressionDetailPanel({ baseline, onScoreUpdate }: { baseline: PromptBaseline; onScoreUpdate?: (id: string, cl: number, cc: number, status: string) => void }) {
-  const detail = REGRESSION_DETAIL[baseline.id]
+  const hardcoded = REGRESSION_DETAIL[baseline.id]
+  const detail: RegressionDetail = hardcoded ?? {
+    clHistory: [baseline.cognitive_load],
+    ccHistory: [baseline.comprehension],
+    baselinePrompt: baseline.promptText ?? baseline.label,
+    currentPrompt: baseline.promptText ?? baseline.label,
+    baselineDate: baseline.last_evaluated,
+    currentDate: baseline.last_evaluated,
+  }
   const [rewrites, setRewrites] = useState<RewriteAlternative[] | null>(null)
   const [rewriteLoading, setRewriteLoading] = useState(false)
   const [rewriteFallback, setRewriteFallback] = useState(false)
@@ -273,10 +281,8 @@ function RegressionDetailPanel({ baseline, onScoreUpdate }: { baseline: PromptBa
   const [resetConfirm, setResetConfirm] = useState(false)
   const [reEvalLoading, setReEvalLoading] = useState(false)
 
-  if (!detail) return null
-  const safeDetail = detail  // narrowed — guaranteed non-null below this point
-
-  const chartData = EVAL_LABELS.map((v, i) => ({
+  const chartLabels = hardcoded ? EVAL_LABELS : detail.clHistory.map((_, i) => `v${i + 1}`)
+  const chartData = chartLabels.map((v, i) => ({
     v,
     CL: detail.clHistory[i],
     CC: detail.ccHistory[i],
@@ -289,7 +295,7 @@ function RegressionDetailPanel({ baseline, onScoreUpdate }: { baseline: PromptBa
     setRewriteLoading(true)
     try {
       const result = await rewrite({
-        originalText: safeDetail.currentPrompt,
+        originalText: detail.currentPrompt,
         copyType: 'long_form',
         scores: {
           cognitiveLoad: baseline.cognitive_load,
@@ -337,7 +343,7 @@ function RegressionDetailPanel({ baseline, onScoreUpdate }: { baseline: PromptBa
   }
 
   function handleExport() {
-    const blob = new Blob([JSON.stringify({ prompt: baseline.label, history: chartData, baseline: safeDetail.baselinePrompt, current: safeDetail.currentPrompt }, null, 2)], { type: 'application/json' })
+    const blob = new Blob([JSON.stringify({ prompt: baseline.label, history: chartData, baseline: detail.baselinePrompt, current: detail.currentPrompt }, null, 2)], { type: 'application/json' })
     const url = URL.createObjectURL(blob)
     const a = document.createElement('a'); a.href = url; a.download = `${baseline.label.replace(/\s+/g, '-')}-history.json`; a.click()
     URL.revokeObjectURL(url)
@@ -483,7 +489,7 @@ function RegressionDetailPanel({ baseline, onScoreUpdate }: { baseline: PromptBa
             void (async () => {
               setReEvalLoading(true)
               try {
-                const scores = await scoreText(safeDetail.currentPrompt, 'ws-1')
+                const scores = await scoreTextRemote(detail.currentPrompt)
                 const status = scores.cognitive_load > 75 || scores.manipulation_risk > 40 ? 'block' : scores.cognitive_load > 55 || scores.manipulation_risk > 25 ? 'warn' : 'ok'
                 onScoreUpdate?.(baseline.id, scores.cognitive_load, scores.comprehension_confidence, status)
               } catch { /* ignore */ }
@@ -532,7 +538,7 @@ function AddPromptModal({
     if (!name.trim() || !text.trim()) return
     setLoading(true)
     try {
-      const scores = await scoreText(text, 'ws-1')
+      const scores = await scoreTextRemote(text.trim())
       const newPrompt: PromptBaseline = {
         id: `p-${Date.now()}`,
         hash: text.slice(0, 16).replace(/\s+/g, '').toLowerCase(),
@@ -543,6 +549,7 @@ function AddPromptModal({
         delta_cc: 0,
         last_evaluated: new Date().toISOString(),
         status: scores.cognitive_load > 75 || scores.manipulation_risk > 60 ? 'block' : scores.cognitive_load > 60 || scores.manipulation_risk > 40 ? 'warn' : 'ok',
+        promptText: text.trim(),
       }
       onAdded(newPrompt)
       setSuccess(true)
@@ -558,6 +565,7 @@ function AddPromptModal({
         delta_cc: 0,
         last_evaluated: new Date().toISOString(),
         status: 'ok',
+        promptText: text.trim(),
       }
       onAdded(newPrompt)
       setSuccess(true)
@@ -672,8 +680,9 @@ export function EngineerView() {
   const [openBaselineId, setOpenBaselineId] = useState<string | null>(null)
   const [addPromptModalOpen, setAddPromptModalOpen] = useState(false)
   const [addedPrompts, setAddedPrompts] = useState<PromptBaseline[]>([])
+  const [baselineOverrides, setBaselineOverrides] = useState<Record<string, Partial<PromptBaseline>>>({})
 
-  const allBaselines = [...(addedPrompts ?? []), ...(baselines ?? [])]
+  const allBaselines = [...(addedPrompts ?? []), ...(baselines ?? [])].map((b) => ({ ...b, ...baselineOverrides[b.id] }))
 
   // Audit log filters
   const [zoneFilter, setZoneFilter] = useState<Zone | 'ALL'>('ALL')
@@ -763,7 +772,9 @@ export function EngineerView() {
                         <tr>
                           <td colSpan={8} className="p-0">
                             <RegressionDetailPanel baseline={b} onScoreUpdate={(id, cl, cc, status) => {
-                              setAddedPrompts((prev) => prev.map((p) => p.id === id ? { ...p, cognitive_load: cl, comprehension: cc, status: status as 'ok' | 'warn' | 'block' } : p))
+                              const update = { cognitive_load: cl, comprehension: cc, status: status as 'ok' | 'warn' | 'block' }
+                              setAddedPrompts((prev) => prev.map((p) => p.id === id ? { ...p, ...update } : p))
+                              setBaselineOverrides((prev) => ({ ...prev, [id]: update }))
                             }} />
                           </td>
                         </tr>

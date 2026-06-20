@@ -2,7 +2,7 @@ import { useRef, useState } from 'react'
 import { useQuery } from '@tanstack/react-query'
 import { useVirtualizer } from '@tanstack/react-virtual'
 import { fetchRemediations } from '../api/mock.js'
-import { scoreText } from '../api/scoringApi.js'
+import { scoreTextRemote } from '../api/scoringApi.js'
 import { Card } from '../components/Card.js'
 import { EvidenceDrawer } from '../components/EvidenceDrawer.js'
 import { Spinner } from '../components/Spinner.js'
@@ -61,7 +61,7 @@ export function SafetyView() {
     if (!manualText.trim()) return
     setManualScanning(true)
     try {
-      const scores = await scoreText(manualText, 'ws-1')
+      const scores = await scoreTextRemote(manualText.trim())
       if (scores.manipulation_risk > 40) {
         addManipulationFeedEntry({
           category: 'false_urgency',

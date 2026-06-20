@@ -1,7 +1,7 @@
 export type { RewriteRequest, RewriteAlternative, RewriteResponse } from '@cognarc/types'
 import type { RewriteRequest, RewriteResponse } from '@cognarc/types'
 
-const REWRITE_URL = import.meta.env.VITE_COGNITIVE_REWRITE_URL ?? 'http://localhost:3006'
+const REWRITE_URL = import.meta.env.VITE_COGNITIVE_REWRITE_URL ?? ''
 
 export async function rewrite(request: RewriteRequest): Promise<RewriteResponse> {
   const payload = {
@@ -28,7 +28,8 @@ export async function rewrite(request: RewriteRequest): Promise<RewriteResponse>
     workspace_id: request.workspaceId,
   }
 
-  const res = await fetch(`${REWRITE_URL}/rewrite`, {
+  const endpoint = REWRITE_URL ? `${REWRITE_URL}/rewrite` : '/api/rewrite'
+  const res = await fetch(endpoint, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(payload),

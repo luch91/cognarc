@@ -166,3 +166,28 @@ VITE_SCORING_PROXY_URL=https://cognarc-scoring-proxy.vercel.app
 ```
 
 Rate-limited to 10 scores/day per IP. Features CognitiveScoreCard in manager mode with radar chart, brain region badges, and plain-English explanation.
+
+## Fix Pack 6 — Bug Fixes & Live Rewrite Service
+
+### Bug Fixes
+
+- **Live score persists across tabs** — Score result and input text are now stored in AppContext, so navigating between views (Overview → Designer → back) no longer loses the scored result
+- **Duplicate scoring panel removed** — The redundant "Try Live Scoring" panel on the Overview was removed; the single "Live Cognitive Score" panel now handles all scoring via the production proxy
+- **All scoring calls use production proxy** — Every component (`LiveScorePanel`, `MessageClarityScorer`, `EngineerView`, `GrowthView`, `SafetyView`) now calls `scoreTextRemote` which routes through the scoring proxy URL, not localhost
+- **Re-evaluate button works** — `RegressionDetailPanel` now works for both hardcoded baselines and user-added prompts (generates detail data from the baseline object); also uses the scoring proxy
+- **Variant Ranker "Add Variant"** — Button is disabled until text is entered in the textarea (this is correct behavior, not a bug)
+
+### Live Rewrite Service
+
+The Cognitive Rewrite Service is now deployed as a Vercel API route at `/api/rewrite` on the dashboard project. It calls Groq's API directly with the same prompt engineering as the Python FastAPI service.
+
+Vercel env var required:
+```
+GROQ_API_KEY=<Groq API key>
+```
+
+This eliminates the "Demo mode" fallback messages in:
+- Act-Gated Approvals alternatives
+- Engineer View CI/CD gate rewrite suggestions
+- Growth View Copy Health Checker rewrites
+- Prompt Regression Monitor rewrite suggestions

@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { scoreText, type LiveScoreResult } from '../api/scoringApi.js'
+import { scoreTextRemote, type LiveScoreResult } from '../api/scoringApi.js'
 import { useAppContext } from '../context/AppContext.js'
 import { Card } from './Card.js'
 import { Spinner } from './Spinner.js'
@@ -36,10 +36,10 @@ const EXAMPLE_PROMPTS = [
 ]
 
 export function LiveScorePanel() {
-  const { recordLiveScore } = useAppContext()
-  const [text, setText] = useState('')
-  const [state, setState] = useState<'idle' | 'loading' | 'done' | 'error'>('idle')
-  const [result, setResult] = useState<LiveScoreResult | null>(null)
+  const { recordLiveScore, lastLiveScoreResult, lastLiveScoreText } = useAppContext()
+  const [text, setText] = useState(lastLiveScoreText)
+  const [state, setState] = useState<'idle' | 'loading' | 'done' | 'error'>(lastLiveScoreResult ? 'done' : 'idle')
+  const [result, setResult] = useState<LiveScoreResult | null>(lastLiveScoreResult)
   const [error, setError] = useState<string | null>(null)
 
   async function handleScore() {
@@ -47,10 +47,10 @@ export function LiveScorePanel() {
     setState('loading')
     setError(null)
     try {
-      const res = await scoreText(text.trim())
+      const res = await scoreTextRemote(text.trim())
       setResult(res)
       setState('done')
-      recordLiveScore(res)
+      recordLiveScore(res, text.trim())
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Unknown error')
       setState('error')
@@ -94,7 +94,7 @@ export function LiveScorePanel() {
           <textarea
             value={text}
             onChange={(e) => setText(e.target.value)}
-            placeholder="Paste any text, prompt, or UI copy to score it against TRIBE v2…"
+            placeholder="Paste any text, prompt, or UI copy to score…"
             rows={3}
             disabled={state === 'loading'}
             className="flex-1 text-sm border border-gray-200 rounded-lg px-3 py-2 resize-none focus:outline-none focus:ring-2 focus:ring-brand-400 disabled:opacity-60"
@@ -114,7 +114,7 @@ export function LiveScorePanel() {
         {/* Loading state */}
         {state === 'loading' && (
           <p className="text-xs text-gray-400 animate-pulse">
-            Sending to TRIBE v2 on Cloud Run… cold start may take ~5 min, warm requests ~30s.
+            Scoring via Cloud Run… cold start may take ~5 min, warm requests ~30s.
           </p>
         )}
 
@@ -149,7 +149,7 @@ export function LiveScorePanel() {
                 {result.model_version} · {(result.latency_ms / 1000).toFixed(1)}s
               </span>
               <button
-                onClick={() => { setResult(null); setState('idle') }}
+                onClick={() => { setResult(null); setState('idle'); setText('') }}
                 className="text-xs text-gray-400 hover:text-gray-600"
               >
                 Clear

@@ -5,7 +5,7 @@ import {
 } from 'recharts'
 import { fetchTrustDrift } from '../api/mock.js'
 import { analyzeVideo, makeFallbackVideoAnalysis } from '../api/videoAnalysisApi.js'
-import { scoreText } from '../api/scoringApi.js'
+import { scoreTextRemote } from '../api/scoringApi.js'
 import { supabase } from '../api/supabaseClient.js'
 import { Card } from '../components/Card.js'
 import { RiskBadge } from '../components/RiskBadge.js'
@@ -198,7 +198,7 @@ export function GrowthView() {
       const v = pendingVariants[i]!
       const textToScore = v.mode === 'url' ? `URL content from ${v.content}` : v.content
       try {
-        const scores = await scoreText(textToScore, 'ws-1')
+        const scores = await scoreTextRemote(textToScore)
         results.push({ ...v, scores, rank: 0, health: deriveVariantHealth(scores) })
       } catch {
         const fallback: LiveScoreResult = { cognitive_load: 50, comprehension_confidence: 60, emotional_valence: 50, trust_coherence: 60, manipulation_risk: 20, cognitive_risk: 'MEDIUM', top_brain_regions: [], explanation: '', model_version: 'mock', latency_ms: 0 }

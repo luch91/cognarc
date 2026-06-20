@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { scoreText } from '../api/scoringApi.js'
+import { scoreTextRemote } from '../api/scoringApi.js'
 import { rewrite } from '../api/rewriteApi.js'
 import type { RewriteAlternative } from '../api/rewriteApi.js'
 import type { LiveScoreResult } from '../api/scoringApi.js'
@@ -201,7 +201,7 @@ export function MessageClarityScorer() {
     setAlternatives(null)
     setRewriteFallback(false)
     try {
-      const result = await scoreText(text.trim())
+      const result = await scoreTextRemote(text.trim())
       setScores(result)
     } catch (err) {
       setScoreError(err instanceof Error ? err.message : 'Scoring failed')
