@@ -5,14 +5,18 @@ import {
 } from 'recharts'
 import { fetchTrustDrift } from '../api/mock.js'
 import { analyzeVideo, makeFallbackVideoAnalysis } from '../api/videoAnalysisApi.js'
+import { scoreText } from '../api/scoringApi.js'
 import { supabase } from '../api/supabaseClient.js'
 import { Card } from '../components/Card.js'
 import { RiskBadge } from '../components/RiskBadge.js'
 import { Spinner } from '../components/Spinner.js'
 import { MessageClarityScorer } from '../components/MessageClarityScorer.js'
+import { UrlAnalyser } from '../components/UrlAnalyser.js'
 import { VideoReport } from '../components/VideoReport.js'
+import { CognitiveScoreCard } from '../components/CognitiveScoreCard.js'
 import { useAppContext } from '../context/AppContext.js'
 import type { CreativeAsset } from '../api/types.js'
+import type { LiveScoreResult } from '../api/scoringApi.js'
 
 const FUNNEL_STEPS = [
   { step: 'Ad Creative',       load: 34, trust: 81, risk: 'LOW'    },
@@ -47,20 +51,132 @@ const TRUST_DRIFT_DATA = [
 
 const TRUST_DRIFT_X_TICKS = ['5/5', '5/8', '5/11', '5/14', '5/18']
 
-const VARIANT_SCORES = [
-  { id: 'v1', name: 'Variant A — "Start your journey"', cognitive_load: 34, trust: 84, manipulation: 8, rank: 1 },
-  { id: 'v2', name: 'Variant B — "Unlock your potential"', cognitive_load: 41, trust: 78, manipulation: 14, rank: 2 },
-  { id: 'v3', name: 'Variant C — "Act now — limited offer!"', cognitive_load: 65, trust: 43, manipulation: 67, rank: 3 },
-]
-
 function isVideo(name: string) {
   return /\.(mp4|mov|webm)$/i.test(name)
+}
+
+function isImage(name: string) {
+  return /\.(png|jpg|jpeg|webp|gif)$/i.test(name)
+}
+
+const MANIPULATION_CATEGORIES = [
+  { key: 'false_urgency', label: 'False Urgency' },
+  { key: 'authority_mimicry', label: 'Authority Mimicry' },
+  { key: 'sycophantic_drift', label: 'Sycophantic Drift' },
+  { key: 'ambiguity_exploitation', label: 'Ambiguity Exploitation' },
+  { key: 'social_proof_fabrication', label: 'Social Proof Fabrication' },
+  { key: 'obfuscation', label: 'Obfuscation' },
+] as const
+
+function TextReport({ item }: { item: CreativeAsset }) {
+  const scores = {
+    cognitiveLoad: item.cognitive_load ?? 50,
+    comprehensionConfidence: 100 - (item.cognitive_load ?? 50),
+    trustCoherence: item.trust ?? 60,
+    manipulationRisk: item.cognitive_load && item.cognitive_load > 60 ? 61 : 25,
+  }
+  const taxonomy = scores.manipulationRisk > 40
+    ? { falseUrgency: 65, authorityMimicry: 45, obfuscation: 30 }
+    : undefined
+  return (
+    <div data-testid="queue-item-report" className="border-t border-gray-100 bg-gray-50 px-4 py-4 space-y-4">
+      <h4 className="text-sm font-semibold text-gray-700">Text Cognitive Analysis</h4>
+      <CognitiveScoreCard scores={scores} {...(taxonomy ? { taxonomy } : {})} defaultMode="manager" showToggle={false} />
+      <div className="bg-white border border-gray-100 rounded-lg p-3 max-h-40 overflow-y-auto">
+        <pre className="text-xs font-mono text-gray-600 whitespace-pre-wrap">{item.name}</pre>
+      </div>
+      {taxonomy && (
+        <div>
+          <h5 className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-2">Manipulation Taxonomy</h5>
+          <div className="grid grid-cols-3 gap-2">
+            {MANIPULATION_CATEGORIES.map(({ key, label }) => {
+              const val = (taxonomy as Record<string, number | undefined>)[key.replace(/_([a-z])/g, (_, c: string) => c.toUpperCase())] ?? 0
+              return (
+                <div key={key} className="bg-white border border-gray-100 rounded p-2 text-center">
+                  <p className="text-[10px] text-gray-400">{label}</p>
+                  <p className={`text-sm font-bold ${val > 40 ? 'text-red-500' : 'text-gray-600'}`}>{val}</p>
+                </div>
+              )
+            })}
+          </div>
+        </div>
+      )}
+    </div>
+  )
+}
+
+function ImageReport({ item }: { item: CreativeAsset }) {
+  const scores = {
+    cognitiveLoad: item.cognitive_load ?? 50,
+    comprehensionConfidence: 100 - (item.cognitive_load ?? 50),
+    trustCoherence: item.trust ?? 60,
+    manipulationRisk: item.cognitive_load && item.cognitive_load > 60 ? 55 : 20,
+  }
+  const loadLevel = scores.cognitiveLoad > 65 ? 'high' : scores.cognitiveLoad > 45 ? 'moderate' : 'low'
+  const advice = loadLevel === 'high' ? 'simplifying the composition' : loadLevel === 'moderate' ? 'reducing text overlay' : 'maintaining this approach'
+  return (
+    <div data-testid="queue-item-report" className="border-t border-gray-100 bg-gray-50 px-4 py-4 space-y-4">
+      <h4 className="text-sm font-semibold text-gray-700">Image Cognitive Analysis</h4>
+      <CognitiveScoreCard scores={scores} defaultMode="manager" showToggle={false} />
+      <div className="bg-white border border-gray-100 rounded-lg p-3 text-sm text-gray-600">
+        Cognitive load is <strong>{loadLevel}</strong> — consider {advice}.
+      </div>
+    </div>
+  )
+}
+
+// ── Variant Ranker types ──────────────────────────────────────────────────
+type VariantInputMode = 'text' | 'image' | 'url'
+
+interface PendingVariant {
+  id: string
+  label: string
+  mode: VariantInputMode
+  content: string
+  fileName?: string
+}
+
+interface RankedVariant extends PendingVariant {
+  scores: LiveScoreResult
+  rank: number
+  health: 'CLEAR' | 'NEEDS_REVIEW' | 'FLAGGED'
+}
+
+function deriveVariantHealth(s: LiveScoreResult): 'FLAGGED' | 'NEEDS_REVIEW' | 'CLEAR' {
+  if (s.manipulation_risk > 60 || s.cognitive_load > 75) return 'FLAGGED'
+  if (s.manipulation_risk > 40 || s.cognitive_load > 60) return 'NEEDS_REVIEW'
+  return 'CLEAR'
+}
+
+const VARIANT_HEALTH_BADGE = {
+  FLAGGED: { bg: 'bg-red-100 text-red-700', label: 'FLAGGED' },
+  NEEDS_REVIEW: { bg: 'bg-amber-100 text-amber-700', label: 'NEEDS REVIEW' },
+  CLEAR: { bg: 'bg-green-100 text-green-700', label: 'CLEAR' },
+} as const
+
+function nextLabel(variants: PendingVariant[]): string {
+  const letters = 'ABCDEFGH'
+  return `Variant ${letters[variants.length] ?? String(variants.length + 1)}`
 }
 
 export function GrowthView() {
   const { data: trustDrift, isLoading: tdLoading } = useQuery({ queryKey: ['trust-drift'], queryFn: fetchTrustDrift })
   const fileInputRef = useRef<HTMLInputElement>(null)
+  const variantImageRef = useRef<HTMLInputElement>(null)
   const [openReportId, setOpenReportId] = useState<string | null>(null)
+  const [copyTab, setCopyTab] = useState<'paste' | 'url'>('paste')
+
+  // Variant Ranker state
+  const [variantMode, setVariantMode] = useState<VariantInputMode>('text')
+  const [variantText, setVariantText] = useState('')
+  const [variantUrl, setVariantUrl] = useState('')
+  const [variantLabel, setVariantLabel] = useState('')
+  const [pendingVariants, setPendingVariants] = useState<PendingVariant[]>([])
+  const [rankedVariants, setRankedVariants] = useState<RankedVariant[]>([])
+  const [variantScoring, setVariantScoring] = useState(false)
+  const [variantProgress, setVariantProgress] = useState(0)
+  const [lastComparisonDate, setLastComparisonDate] = useState<string | null>(null)
+
   const {
     evaluationQueue: queue, addToEvaluationQueue, updateEvaluationItem,
     addAgentFeedEntry, addManipulationFeedEntry, addActGatedItem, addAuditEntry,
@@ -73,6 +189,35 @@ export function GrowthView() {
     'Spring Launch': s.trust,
     'Retention Drive': retention[i]?.trust,
   }))
+
+  async function runVariantComparison() {
+    setVariantScoring(true)
+    setVariantProgress(0)
+    const results: RankedVariant[] = []
+    for (let i = 0; i < pendingVariants.length; i++) {
+      const v = pendingVariants[i]!
+      const textToScore = v.mode === 'url' ? `URL content from ${v.content}` : v.content
+      try {
+        const scores = await scoreText(textToScore, 'ws-1')
+        results.push({ ...v, scores, rank: 0, health: deriveVariantHealth(scores) })
+      } catch {
+        const fallback: LiveScoreResult = { cognitive_load: 50, comprehension_confidence: 60, emotional_valence: 50, trust_coherence: 60, manipulation_risk: 20, cognitive_risk: 'MEDIUM', top_brain_regions: [], explanation: '', model_version: 'mock', latency_ms: 0 }
+        results.push({ ...v, scores: fallback, rank: 0, health: deriveVariantHealth(fallback) })
+      }
+      setVariantProgress(Math.round(((i + 1) / pendingVariants.length) * 100))
+    }
+
+    results.sort((a, b) => {
+      const scoreA = a.scores.cognitive_load * 0.4 - a.scores.trust_coherence * 0.4 + a.scores.manipulation_risk * 0.2
+      const scoreB = b.scores.cognitive_load * 0.4 - b.scores.trust_coherence * 0.4 + b.scores.manipulation_risk * 0.2
+      return scoreA - scoreB
+    })
+    results.forEach((r, i) => { r.rank = i + 1 })
+
+    setRankedVariants(results)
+    setVariantScoring(false)
+    setLastComparisonDate(new Date().toLocaleString())
+  }
 
   async function runVideoAnalysis(id: string, file: File) {
     let analysis
@@ -323,7 +468,7 @@ export function GrowthView() {
                   }`}>
                     {a.status}
                   </span>
-                  {a.type === 'video' && a.status === 'complete' && a.videoAnalysis && (
+                  {a.status === 'complete' && (
                     <button
                       onClick={() => setOpenReportId(openReportId === a.id ? null : a.id)}
                       className="text-xs text-brand-600 hover:text-brand-700 font-medium underline underline-offset-2 shrink-0"
@@ -333,13 +478,19 @@ export function GrowthView() {
                   )}
                 </div>
               </div>
-              {/* Inline video report panel */}
-              {a.type === 'video' && openReportId === a.id && a.videoAnalysis && (
-                <VideoReport
-                  report={a.videoAnalysis}
-                  {...(a.videoAnalysisDemoMode ? { demoMode: a.videoAnalysisDemoMode } : {})}
-                  onClose={() => setOpenReportId(null)}
-                />
+              {/* Inline report panel — all file types */}
+              {openReportId === a.id && a.status === 'complete' && (
+                a.type === 'video' && a.videoAnalysis ? (
+                  <VideoReport
+                    report={a.videoAnalysis}
+                    {...(a.videoAnalysisDemoMode ? { demoMode: a.videoAnalysisDemoMode } : {})}
+                    onClose={() => setOpenReportId(null)}
+                  />
+                ) : a.type === 'image' || isImage(a.name) ? (
+                  <ImageReport item={a} />
+                ) : (
+                  <TextReport item={a} />
+                )
               )}
             </div>
           ))}
@@ -349,31 +500,223 @@ export function GrowthView() {
       {/* Copy Health Checker */}
       <Card
         title="Copy Health Checker"
-        action={<span className="text-xs text-gray-400">Paste any copy — headline, email, CTA, or landing page section — and see how your audience is likely to respond.</span>}
+        action={
+          <div className="flex items-center gap-0.5 rounded-lg border border-gray-200 p-0.5 text-xs">
+            <button
+              onClick={() => setCopyTab('paste')}
+              className={`px-3 py-1 rounded-md font-medium transition-colors ${copyTab === 'paste' ? 'bg-gray-900 text-white' : 'text-gray-500 hover:text-gray-700'}`}
+            >
+              Paste copy
+            </button>
+            <button
+              onClick={() => setCopyTab('url')}
+              data-testid="url-tab"
+              className={`px-3 py-1 rounded-md font-medium transition-colors ${copyTab === 'url' ? 'bg-gray-900 text-white' : 'text-gray-500 hover:text-gray-700'}`}
+            >
+              Test a URL
+            </button>
+          </div>
+        }
       >
-        <MessageClarityScorer />
+        {copyTab === 'paste' ? <MessageClarityScorer /> : <UrlAnalyser />}
       </Card>
 
       {/* Variant Ranker */}
       <Card title="Variant Ranker">
-        <p className="text-xs text-gray-400 mb-3">Ranked by cognitive safety score (lower load + higher trust + lower manipulation = better).</p>
-        <div className="space-y-2">
-          {VARIANT_SCORES.map((v) => (
-            <div key={v.id} className="flex items-center gap-4 p-3 rounded-lg border border-gray-100">
-              <span className={`w-7 h-7 rounded-full flex items-center justify-center text-sm font-bold shrink-0 ${v.rank === 1 ? 'bg-brand-100 text-brand-700' : 'bg-gray-100 text-gray-500'}`}>
-                {v.rank}
-              </span>
-              <div className="flex-1 min-w-0">
-                <p className="text-sm font-medium text-gray-700 truncate">{v.name}</p>
-              </div>
-              <div className="flex gap-4 text-xs text-gray-500 shrink-0">
-                <span>Load: <strong className={v.cognitive_load > 60 ? 'text-danger' : 'text-gray-700'}>{v.cognitive_load}</strong></span>
-                <span>Trust: <strong className="text-gray-700">{v.trust}</strong></span>
-                <span>Manip: <strong className={v.manipulation > 40 ? 'text-danger' : 'text-gray-700'}>{v.manipulation}</strong></span>
-              </div>
+        <p className="text-xs text-gray-400 mb-3">Upload up to 8 variants. CognArc ranks them by predicted cognitive engagement and trust coherence.</p>
+
+        {/* Upload area */}
+        {rankedVariants.length === 0 && (
+          <div className="border border-dashed border-gray-200 rounded-lg p-4 mb-4">
+            <p className="text-sm font-medium text-gray-600 mb-3">Add a variant</p>
+            <div className="flex items-center gap-0.5 rounded-lg border border-gray-200 p-0.5 text-xs mb-3 w-fit">
+              {(['text', 'image', 'url'] as const).map((m) => (
+                <button
+                  key={m}
+                  onClick={() => setVariantMode(m)}
+                  className={`px-3 py-1 rounded-md font-medium transition-colors capitalize ${variantMode === m ? 'bg-gray-900 text-white' : 'text-gray-500 hover:text-gray-700'}`}
+                >
+                  {m === 'text' ? 'Paste text' : m === 'image' ? 'Upload image' : 'Enter URL'}
+                </button>
+              ))}
             </div>
-          ))}
-        </div>
+
+            {variantMode === 'text' && (
+              <div className="space-y-2">
+                <textarea
+                  value={variantText}
+                  onChange={(e) => setVariantText(e.target.value)}
+                  placeholder="Paste your copy — headline, email, ad, CTA..."
+                  className="w-full text-sm border border-gray-200 rounded-lg px-3 py-2 h-20 focus:outline-none focus:ring-2 focus:ring-brand-500 resize-none"
+                />
+                <div className="flex items-center gap-2">
+                  <input
+                    type="text"
+                    value={variantLabel}
+                    onChange={(e) => setVariantLabel(e.target.value)}
+                    placeholder={nextLabel(pendingVariants)}
+                    className="text-sm border border-gray-200 rounded-lg px-3 py-2 w-40 focus:outline-none focus:ring-2 focus:ring-brand-500"
+                  />
+                  <button
+                    data-testid="add-variant"
+                    onClick={() => {
+                      if (!variantText.trim()) return
+                      const v: PendingVariant = { id: `pv-${Date.now()}`, label: variantLabel || nextLabel(pendingVariants), mode: 'text', content: variantText.trim() }
+                      setPendingVariants((prev) => [...prev, v])
+                      setVariantText('')
+                      setVariantLabel('')
+                    }}
+                    disabled={!variantText.trim() || pendingVariants.length >= 8}
+                    className="text-xs px-3 py-2 rounded-lg border border-teal-500 text-teal-600 hover:bg-teal-50 transition-colors disabled:opacity-40"
+                  >
+                    Add Variant
+                  </button>
+                </div>
+              </div>
+            )}
+
+            {variantMode === 'url' && (
+              <div className="space-y-2">
+                <input
+                  type="url"
+                  value={variantUrl}
+                  onChange={(e) => setVariantUrl(e.target.value)}
+                  placeholder="https://example.com"
+                  className="w-full text-sm border border-gray-200 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-brand-500"
+                />
+                <div className="flex items-center gap-2">
+                  <input
+                    type="text"
+                    value={variantLabel}
+                    onChange={(e) => setVariantLabel(e.target.value)}
+                    placeholder={nextLabel(pendingVariants)}
+                    className="text-sm border border-gray-200 rounded-lg px-3 py-2 w-40 focus:outline-none focus:ring-2 focus:ring-brand-500"
+                  />
+                  <button
+                    onClick={() => {
+                      if (!variantUrl.trim()) return
+                      const v: PendingVariant = { id: `pv-${Date.now()}`, label: variantLabel || nextLabel(pendingVariants), mode: 'url', content: variantUrl.trim() }
+                      setPendingVariants((prev) => [...prev, v])
+                      setVariantUrl('')
+                      setVariantLabel('')
+                    }}
+                    disabled={!variantUrl.trim() || pendingVariants.length >= 8}
+                    className="text-xs px-3 py-2 rounded-lg border border-teal-500 text-teal-600 hover:bg-teal-50 transition-colors disabled:opacity-40"
+                  >
+                    Add Variant
+                  </button>
+                </div>
+              </div>
+            )}
+
+            {variantMode === 'image' && (
+              <div className="space-y-2">
+                <div
+                  className="border-2 border-dashed border-gray-200 rounded-lg p-6 text-center cursor-pointer hover:border-gray-300 transition-colors"
+                  onClick={() => variantImageRef.current?.click()}
+                >
+                  <p className="text-sm text-gray-400">Drop image or click to upload (.png .jpg .webp)</p>
+                </div>
+                <input
+                  ref={variantImageRef}
+                  type="file"
+                  accept=".png,.jpg,.jpeg,.webp"
+                  className="hidden"
+                  onChange={(e) => {
+                    const f = e.target.files?.[0]
+                    if (!f) return
+                    e.target.value = ''
+                    const v: PendingVariant = { id: `pv-${Date.now()}`, label: variantLabel || nextLabel(pendingVariants), mode: 'image', content: f.name, fileName: f.name }
+                    setPendingVariants((prev) => [...prev, v])
+                    setVariantLabel('')
+                  }}
+                />
+                <input
+                  type="text"
+                  value={variantLabel}
+                  onChange={(e) => setVariantLabel(e.target.value)}
+                  placeholder={nextLabel(pendingVariants)}
+                  className="text-sm border border-gray-200 rounded-lg px-3 py-2 w-40 focus:outline-none focus:ring-2 focus:ring-brand-500"
+                />
+              </div>
+            )}
+
+            {/* Pending variants */}
+            {pendingVariants.length > 0 && (
+              <div className="mt-3 space-y-1">
+                <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide">Pending variants</p>
+                {pendingVariants.map((v) => (
+                  <div key={v.id} className="flex items-center gap-2 px-3 py-1.5 rounded border border-gray-100 bg-white text-sm">
+                    <span className="font-medium text-gray-700">{v.label}</span>
+                    <span className="text-gray-300">·</span>
+                    <span className="text-gray-400 truncate flex-1">{v.content.slice(0, 60)}{v.content.length > 60 ? '…' : ''}</span>
+                    <button
+                      onClick={() => setPendingVariants((prev) => prev.filter((p) => p.id !== v.id))}
+                      className="text-gray-400 hover:text-red-500 text-xs shrink-0"
+                    >
+                      ×
+                    </button>
+                  </div>
+                ))}
+              </div>
+            )}
+
+            {/* Run Comparison button */}
+            <button
+              onClick={runVariantComparison}
+              disabled={pendingVariants.length < 2 || variantScoring}
+              className="w-full mt-3 text-sm py-2.5 rounded-lg bg-teal-500 text-white font-semibold hover:bg-teal-600 transition-colors disabled:opacity-40 disabled:cursor-not-allowed flex items-center justify-center gap-2"
+            >
+              {variantScoring ? <><Spinner /> Scoring {pendingVariants.length} variants...</> : 'Run Comparison'}
+            </button>
+
+            {variantScoring && (
+              <div className="mt-2">
+                <div className="w-full bg-gray-200 rounded-full h-1.5">
+                  <div className="bg-teal-500 h-1.5 rounded-full transition-all duration-300" style={{ width: `${variantProgress}%` }} />
+                </div>
+              </div>
+            )}
+          </div>
+        )}
+
+        {/* Ranked results */}
+        {rankedVariants.length > 0 && (
+          <div className="space-y-3">
+            {lastComparisonDate && (
+              <p className="text-xs text-gray-400">Last comparison: {lastComparisonDate}</p>
+            )}
+            {rankedVariants.map((v) => {
+              const badge = VARIANT_HEALTH_BADGE[v.health]
+              return (
+                <div key={v.id} className="flex items-center gap-4 p-3 rounded-lg border border-gray-100">
+                  <span className={`w-7 h-7 rounded-full flex items-center justify-center text-sm font-bold shrink-0 ${v.rank === 1 ? 'bg-brand-100 text-brand-700' : 'bg-gray-100 text-gray-500'}`}>
+                    {v.rank}
+                  </span>
+                  <div className="flex-1 min-w-0">
+                    <p className="text-sm font-medium text-gray-700">{v.label}</p>
+                    <p className="text-xs text-gray-400 truncate">{v.content.slice(0, 60)}{v.content.length > 60 ? '…' : ''}</p>
+                  </div>
+                  <div className="flex gap-3 text-xs text-gray-500 shrink-0 items-center">
+                    <span>Load: <strong className={v.scores.cognitive_load > 60 ? 'text-danger' : 'text-gray-700'}>{Math.round(v.scores.cognitive_load)}</strong></span>
+                    <span>Trust: <strong className="text-gray-700">{Math.round(v.scores.trust_coherence)}</strong></span>
+                    <span>Manip: <strong className={v.scores.manipulation_risk > 40 ? 'text-danger' : 'text-gray-700'}>{Math.round(v.scores.manipulation_risk)}</strong></span>
+                    <span className={`px-1.5 py-0.5 rounded text-[10px] font-bold ${badge.bg}`}>{badge.label}</span>
+                  </div>
+                </div>
+              )
+            })}
+            <p className="text-xs text-gray-400 mt-2">
+              Ranking based on: lowest cognitive load (40%) + highest trust coherence (40%) + lowest manipulation risk (20%)
+            </p>
+            <button
+              onClick={() => { setRankedVariants([]); setPendingVariants([]); setLastComparisonDate(null) }}
+              className="text-xs px-3 py-1.5 rounded-lg border border-gray-200 text-gray-500 hover:bg-gray-50 transition-colors"
+            >
+              Start New Comparison
+            </button>
+          </div>
+        )}
       </Card>
 
       {/* Brand Trust Drift Monitor */}

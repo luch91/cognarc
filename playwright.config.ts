@@ -1,7 +1,7 @@
 import { defineConfig } from '@playwright/test'
 
-const BASE_URL = process.env.PLAYWRIGHT_BASE_URL ?? 'http://localhost:5173'
-const isRemote = BASE_URL !== 'http://localhost:5173'
+const BASE_URL = process.env.PLAYWRIGHT_BASE_URL ?? 'http://127.0.0.1:5174'
+const isRemote = !BASE_URL.includes('localhost') && !BASE_URL.includes('127.0.0.1')
 
 export default defineConfig({
   testDir: './e2e',
@@ -19,9 +19,9 @@ export default defineConfig({
   },
   // Only spin up the dev server when running against localhost
   webServer: isRemote ? undefined : {
-    command: 'pnpm --filter dashboard dev',
-    url: 'http://localhost:5173',
-    reuseExistingServer: !process.env.CI,
+    command: 'pnpm --filter @cognarc/dashboard dev',
+    url: 'http://127.0.0.1:5174',
+    reuseExistingServer: true,
     timeout: 30000,
   },
 })

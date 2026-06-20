@@ -76,22 +76,15 @@ test.describe('Settings page', () => {
     }
   })
 
-  test('OAuth connect button opens modal for Braintrust', async ({ page }) => {
+  test('API key connect button opens modal for Braintrust', async ({ page }) => {
     await page.goto('/settings')
 
-    // The Braintrust row has a unique subline — anchor to that paragraph's parent div,
-    // then use .first() to pick the innermost div if nested.
-    // Simpler: locate the "Connect via OAuth" button directly after the unique subline.
-    const subline = page.locator('p:has-text("Cognitive scores appear as first-class scorer columns")')
-    // The row's Connect button is a sibling; navigate to the common flex container
-    const braintrustRow = subline.locator('..').locator('..')
-    await braintrustRow.locator('button:has-text("Connect via OAuth")').first().click()
+    const connectBtns = page.getByRole('button', { name: 'Connect via API Key' })
+    await connectBtns.first().click()
 
-    await expect(page.locator('text=Connect Braintrust via OAuth')).toBeVisible()
-    await page.click('text=Simulate Connection')
-
-    // After connecting, the same row should show "Connected"
-    await expect(braintrustRow.locator('text=Connected')).toBeVisible({ timeout: 3000 })
+    await expect(page.getByText('Connect Braintrust').first()).toBeVisible()
+    const apiInput = page.locator('input[placeholder*="brk_"]').or(page.locator('input[type="password"]').first())
+    await expect(apiInput).toBeVisible()
   })
 
   test('Add Repository button opens modal and saves repo', async ({ page }) => {

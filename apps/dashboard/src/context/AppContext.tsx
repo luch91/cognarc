@@ -13,6 +13,7 @@ export interface ManipulationFeedEntry {
   score: number
   time: string
   excerpt: string
+  source?: string
 }
 
 const INITIAL_FEED: ManipulationFeedEntry[] = [

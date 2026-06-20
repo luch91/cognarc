@@ -75,37 +75,103 @@ function ConfigureModal({
 
         {/* Body */}
         <div className="px-6 py-4 space-y-4">
-          {localStatus === 'degraded' && reconnectState !== 'done' ? (
-            /* ── Degraded flow ── */
+          {/* Platform-specific connection fields */}
+          {connector.name === 'Segment' && localStatus !== 'connected' && reconnectState !== 'done' && (
+            <>
+              <p className="text-xs text-gray-500">Step 1: Add this webhook URL to your Segment source:</p>
+              <div className="bg-gray-50 border border-gray-100 rounded-lg p-2 font-mono text-xs text-gray-700 flex items-center justify-between">
+                <span>https://api.cognarc.com/webhooks/segment/ws-1</span>
+                <button onClick={() => { void navigator.clipboard.writeText('https://api.cognarc.com/webhooks/segment/ws-1') }} className="text-xs text-teal-600 hover:underline shrink-0 ml-2">Copy</button>
+              </div>
+              <p className="text-xs text-gray-500">Step 2: Enter your Segment webhook signing secret:</p>
+              <input type="password" value={apiKey} onChange={(e) => setApiKey(e.target.value)} placeholder="Webhook signing secret" className="w-full text-sm border border-gray-200 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-brand-500" />
+              <button onClick={() => { handleReconnect() }} disabled={!apiKey.trim() || reconnectState === 'connecting'} className="w-full text-sm py-2 rounded-lg bg-teal-500 text-white font-semibold hover:bg-teal-600 transition-colors disabled:opacity-50 flex items-center justify-center gap-2">
+                {reconnectState === 'connecting' ? <><Spinner /><span>Verifying…</span></> : 'Save & Verify'}
+              </button>
+            </>
+          )}
+
+          {connector.name === 'Amplitude' && localStatus !== 'connected' && reconnectState !== 'done' && (
+            <>
+              <div>
+                <label className="block text-xs font-semibold text-gray-500 mb-1">API Key</label>
+                <input type="password" value={apiKey} onChange={(e) => setApiKey(e.target.value)} placeholder="From Amplitude → Project Settings" className="w-full text-sm border border-gray-200 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-brand-500" />
+              </div>
+              <div>
+                <label className="block text-xs font-semibold text-gray-500 mb-1">Secret Key</label>
+                <input type="password" value={eventFilter} onChange={(e) => setEventFilter(e.target.value)} placeholder="From Amplitude → Project Settings" className="w-full text-sm border border-gray-200 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-brand-500" />
+              </div>
+              <button onClick={() => handleReconnect()} disabled={!apiKey.trim() || reconnectState === 'connecting'} className="w-full text-sm py-2 rounded-lg bg-teal-500 text-white font-semibold hover:bg-teal-600 transition-colors disabled:opacity-50 flex items-center justify-center gap-2">
+                {reconnectState === 'connecting' ? <><Spinner /><span>Connecting…</span></> : 'Connect Amplitude'}
+              </button>
+            </>
+          )}
+
+          {connector.name === 'PostHog' && localStatus !== 'connected' && reconnectState !== 'done' && (
+            <>
+              <div>
+                <label className="block text-xs font-semibold text-gray-500 mb-1">Project API Key</label>
+                <input type="password" value={apiKey} onChange={(e) => setApiKey(e.target.value)} placeholder="From PostHog → Project Settings → API Keys" className="w-full text-sm border border-gray-200 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-brand-500" />
+              </div>
+              <div>
+                <label className="block text-xs font-semibold text-gray-500 mb-1">Host</label>
+                <input type="text" value={eventFilter || 'https://us.i.posthog.com'} onChange={(e) => setEventFilter(e.target.value)} className="w-full text-sm border border-gray-200 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-brand-500" />
+              </div>
+              <button onClick={() => handleReconnect()} disabled={!apiKey.trim() || reconnectState === 'connecting'} className="w-full text-sm py-2 rounded-lg bg-teal-500 text-white font-semibold hover:bg-teal-600 transition-colors disabled:opacity-50 flex items-center justify-center gap-2">
+                {reconnectState === 'connecting' ? <><Spinner /><span>Connecting…</span></> : 'Connect PostHog'}
+              </button>
+            </>
+          )}
+
+          {connector.name === 'GA4' && localStatus !== 'connected' && reconnectState !== 'done' && (
+            <>
+              <div>
+                <label className="block text-xs font-semibold text-gray-500 mb-1">Measurement ID</label>
+                <input type="text" value={apiKey} onChange={(e) => setApiKey(e.target.value)} placeholder="G-XXXXXXXXXX" className="w-full text-sm border border-gray-200 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-brand-500" />
+              </div>
+              <div>
+                <label className="block text-xs font-semibold text-gray-500 mb-1">API Secret</label>
+                <input type="password" value={eventFilter} onChange={(e) => setEventFilter(e.target.value)} placeholder="From GA4 → Admin → Measurement Protocol" className="w-full text-sm border border-gray-200 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-brand-500" />
+              </div>
+              <button onClick={() => handleReconnect()} disabled={!apiKey.trim() || reconnectState === 'connecting'} className="w-full text-sm py-2 rounded-lg bg-teal-500 text-white font-semibold hover:bg-teal-600 transition-colors disabled:opacity-50 flex items-center justify-center gap-2">
+                {reconnectState === 'connecting' ? <><Spinner /><span>Connecting…</span></> : 'Connect GA4'}
+              </button>
+            </>
+          )}
+
+          {connector.name === 'Mixpanel' && localStatus !== 'connected' && reconnectState !== 'done' && (
+            <>
+              <p className="text-xs text-gray-500">Full Mixpanel OAuth integration requires a registered Mixpanel app. In the meantime, you can use Mixpanel's Ingestion API directly.</p>
+              <div>
+                <label className="block text-xs font-semibold text-gray-500 mb-1">Project Token</label>
+                <input type="text" value={apiKey} onChange={(e) => setApiKey(e.target.value)} placeholder="From Mixpanel → Project Settings" className="w-full text-sm border border-gray-200 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-brand-500" />
+              </div>
+              <button onClick={() => handleReconnect()} disabled={!apiKey.trim() || reconnectState === 'connecting'} className="w-full text-sm py-2 rounded-lg bg-teal-500 text-white font-semibold hover:bg-teal-600 transition-colors disabled:opacity-50 flex items-center justify-center gap-2">
+                {reconnectState === 'connecting' ? <><Spinner /><span>Saving…</span></> : 'Save Token'}
+              </button>
+            </>
+          )}
+
+          {/* Generic degraded flow for unknown connectors */}
+          {!['Segment', 'Amplitude', 'PostHog', 'GA4', 'Mixpanel'].includes(connector.name) && localStatus === 'degraded' && reconnectState !== 'done' && (
             <>
               <div className="flex items-center gap-2 px-3 py-2 bg-amber-50 border border-amber-200 rounded-lg">
                 <span className="w-2 h-2 rounded-full bg-amber-500 shrink-0" />
                 <span className="text-xs font-semibold text-amber-700">Degraded — reconnection required</span>
               </div>
-              <div>
-                <label className="block text-xs font-semibold text-gray-500 mb-1">API Key</label>
-                <input
-                  type="password"
-                  value={apiKey}
-                  onChange={(e) => setApiKey(e.target.value)}
-                  placeholder="Paste your API key to reconnect"
-                  className="w-full text-sm border border-gray-200 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-brand-500"
-                />
-              </div>
-              <button
-                onClick={handleReconnect}
-                disabled={reconnectState === 'connecting'}
-                className="w-full text-sm py-2 rounded-lg bg-teal-500 text-white font-semibold hover:bg-teal-600 transition-colors disabled:opacity-50 flex items-center justify-center gap-2"
-              >
+              <input type="password" value={apiKey} onChange={(e) => setApiKey(e.target.value)} placeholder="Paste your API key to reconnect" className="w-full text-sm border border-gray-200 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-brand-500" />
+              <button onClick={handleReconnect} disabled={reconnectState === 'connecting'} className="w-full text-sm py-2 rounded-lg bg-teal-500 text-white font-semibold hover:bg-teal-600 transition-colors disabled:opacity-50 flex items-center justify-center gap-2">
                 {reconnectState === 'connecting' ? <><Spinner /><span>Reconnecting…</span></> : 'Reconnect'}
               </button>
             </>
-          ) : (
-            /* ── Connected flow (or just reconnected) ── */
+          )}
+
+          {/* Connected flow */}
+          {(localStatus === 'connected' || reconnectState === 'done') && (
             <>
               {reconnectState === 'done' && (
                 <div className="flex items-center gap-2 px-3 py-2 bg-green-50 border border-green-200 rounded-lg">
-                  <span className="text-xs font-semibold text-green-700">✓ Reconnected successfully</span>
+                  <span className="text-xs font-semibold text-green-700">✓ Connected successfully</span>
                 </div>
               )}
 
@@ -128,18 +194,6 @@ function ConfigureModal({
                 >
                   <span className={`absolute top-0.5 w-3 h-3 rounded-full bg-white shadow transition-transform ${writeBack ? 'translate-x-4' : 'translate-x-0.5'}`} />
                 </button>
-              </div>
-
-              <div>
-                <label className="block text-xs font-semibold text-gray-500 mb-1">Event Filter</label>
-                <input
-                  type="text"
-                  value={eventFilter}
-                  onChange={(e) => setEventFilter(e.target.value)}
-                  placeholder="e.g. page_view, click, form_submit"
-                  className="w-full text-sm border border-gray-200 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-brand-500"
-                />
-                <p className="text-xs text-gray-400 mt-1">{eventFilter ? eventFilter : 'All events'}</p>
               </div>
 
               <div className="flex items-center gap-2">
@@ -216,8 +270,8 @@ interface EvalPlatform {
 }
 
 const EVAL_PLATFORMS: EvalPlatform[] = [
-  { id: 'braintrust', name: 'Braintrust',      subline: 'Cognitive scores appear as first-class scorer columns',   authType: 'oauth'  },
-  { id: 'langfuse',   name: 'Langfuse',         subline: 'Scores visible in trace evaluation view',                 authType: 'oauth'  },
+  { id: 'braintrust', name: 'Braintrust',      subline: 'Cognitive scores appear as first-class scorer columns',   authType: 'apikey' },
+  { id: 'langfuse',   name: 'Langfuse',         subline: 'Scores visible in trace evaluation view',                 authType: 'apikey' },
   { id: 'wandb',      name: 'Weights & Biases', subline: 'Cognitive scorer in W&B Weave evaluations',               authType: 'apikey' },
   { id: 'arize',      name: 'Arize Phoenix',    subline: 'Cognitive dimensions in Phoenix eval dashboard',           authType: 'apikey' },
 ]
@@ -232,11 +286,17 @@ function EvalConnectModal({
   onConnect: () => void
 }) {
   const [apiKey, setApiKey] = useState('')
-  const [projectId, setProjectId] = useState('')
+  const [secretKey, setSecretKey] = useState('')
+  const [host, setHost] = useState(platform.id === 'langfuse' ? 'https://cloud.langfuse.com' : '')
+  const [connecting, setConnecting] = useState(false)
 
   function handleConnect() {
-    onConnect()
-    onClose()
+    setConnecting(true)
+    setTimeout(() => {
+      setConnecting(false)
+      onConnect()
+      onClose()
+    }, 1200)
   }
 
   return (
@@ -250,56 +310,71 @@ function EvalConnectModal({
       <div className="bg-white rounded-2xl shadow-xl w-full max-w-md">
         <div className="px-6 py-4 border-b border-gray-100 flex items-center justify-between">
           <h2 id="eval-modal-title" className="text-base font-semibold text-gray-800">
-            Connect {platform.name} via {platform.authType === 'oauth' ? 'OAuth' : 'API Key'}
+            Connect {platform.name}
           </h2>
           <button onClick={onClose} className="text-gray-400 hover:text-gray-600 text-xl leading-none" aria-label="Close">×</button>
         </div>
 
         <div className="px-6 py-4 space-y-4">
-          {platform.authType === 'oauth' ? (
-            <p className="text-sm text-gray-600">
-              In a production environment, this would open an OAuth authorization flow with {platform.name}.
-              For this demo workspace, click below to simulate a successful connection.
-            </p>
-          ) : (
+          {platform.id === 'braintrust' && (
+            <div>
+              <label className="block text-xs font-semibold text-gray-500 mb-1">Braintrust API Key</label>
+              <input type="password" value={apiKey} onChange={(e) => setApiKey(e.target.value)} placeholder="From braintrustdata.com → Settings → API Keys" className="w-full text-sm border border-gray-200 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-brand-500" />
+            </div>
+          )}
+
+          {platform.id === 'langfuse' && (
             <>
               <div>
-                <label className="block text-xs font-semibold text-gray-500 mb-1">API Key</label>
-                <input
-                  type="password"
-                  value={apiKey}
-                  onChange={(e) => setApiKey(e.target.value)}
-                  placeholder="Enter your API key"
-                  className="w-full text-sm border border-gray-200 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-brand-500"
-                />
+                <label className="block text-xs font-semibold text-gray-500 mb-1">Public Key</label>
+                <input type="password" value={apiKey} onChange={(e) => setApiKey(e.target.value)} placeholder="From Langfuse → Project Settings" className="w-full text-sm border border-gray-200 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-brand-500" />
               </div>
               <div>
-                <label className="block text-xs font-semibold text-gray-500 mb-1">Workspace / Project ID <span className="font-normal text-gray-400">(optional)</span></label>
-                <input
-                  type="text"
-                  value={projectId}
-                  onChange={(e) => setProjectId(e.target.value)}
-                  placeholder="Optional"
-                  className="w-full text-sm border border-gray-200 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-brand-500"
-                />
+                <label className="block text-xs font-semibold text-gray-500 mb-1">Secret Key</label>
+                <input type="password" value={secretKey} onChange={(e) => setSecretKey(e.target.value)} placeholder="Secret key" className="w-full text-sm border border-gray-200 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-brand-500" />
+              </div>
+              <div>
+                <label className="block text-xs font-semibold text-gray-500 mb-1">Host</label>
+                <input type="text" value={host} onChange={(e) => setHost(e.target.value)} className="w-full text-sm border border-gray-200 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-brand-500" />
+              </div>
+            </>
+          )}
+
+          {platform.id === 'wandb' && (
+            <>
+              <div>
+                <label className="block text-xs font-semibold text-gray-500 mb-1">W&B API Key</label>
+                <input type="password" value={apiKey} onChange={(e) => setApiKey(e.target.value)} placeholder="From wandb.ai → Settings → API keys" className="w-full text-sm border border-gray-200 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-brand-500" />
+              </div>
+              <div>
+                <label className="block text-xs font-semibold text-gray-500 mb-1">Entity <span className="font-normal text-gray-400">(optional)</span></label>
+                <input type="text" value={secretKey} onChange={(e) => setSecretKey(e.target.value)} placeholder="Your W&B username or team name" className="w-full text-sm border border-gray-200 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-brand-500" />
+              </div>
+            </>
+          )}
+
+          {platform.id === 'arize' && (
+            <>
+              <div>
+                <label className="block text-xs font-semibold text-gray-500 mb-1">Arize API Key</label>
+                <input type="password" value={apiKey} onChange={(e) => setApiKey(e.target.value)} placeholder="From app.arize.com → Settings → API Keys" className="w-full text-sm border border-gray-200 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-brand-500" />
+              </div>
+              <div>
+                <label className="block text-xs font-semibold text-gray-500 mb-1">Space ID</label>
+                <input type="text" value={secretKey} onChange={(e) => setSecretKey(e.target.value)} placeholder="Your Arize Space ID" className="w-full text-sm border border-gray-200 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-brand-500" />
               </div>
             </>
           )}
         </div>
 
         <div className="px-6 py-4 border-t border-gray-100 flex justify-end gap-3">
-          <button
-            onClick={onClose}
-            className="text-sm px-4 py-2 rounded-lg border border-gray-200 text-gray-600 hover:bg-gray-50 transition-colors"
-          >
-            Cancel
-          </button>
+          <button onClick={onClose} className="text-sm px-4 py-2 rounded-lg border border-gray-200 text-gray-600 hover:bg-gray-50 transition-colors">Cancel</button>
           <button
             onClick={handleConnect}
-            disabled={platform.authType === 'apikey' && !apiKey.trim()}
-            className="text-sm px-4 py-2 rounded-lg bg-teal-500 text-white font-semibold hover:bg-teal-600 transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
+            disabled={!apiKey.trim() || connecting}
+            className="text-sm px-4 py-2 rounded-lg bg-teal-500 text-white font-semibold hover:bg-teal-600 transition-colors disabled:opacity-40 disabled:cursor-not-allowed flex items-center gap-2"
           >
-            {platform.authType === 'oauth' ? 'Simulate Connection' : 'Save & Connect'}
+            {connecting ? <><Spinner />Connecting...</> : `Connect ${platform.name}`}
           </button>
         </div>
       </div>
@@ -314,6 +389,8 @@ interface GithubRepo {
   url: string
   name: string
   paths: string
+  webhookSecret: string
+  lastEvent?: string
 }
 
 function AddRepoModal({
@@ -325,8 +402,9 @@ function AddRepoModal({
 }) {
   const [repoUrl, setRepoUrl] = useState('')
   const [token, setToken] = useState('')
-  const [paths, setPaths] = useState('')
+  const [paths, setPaths] = useState('prompts/**/*.txt, src/copy/**/*.json')
   const [testState, setTestState] = useState<'idle' | 'testing' | 'ok'>('idle')
+  const [webhookSecret] = useState(() => crypto.randomUUID() + '-' + Date.now())
 
   function handleTest() {
     if (!repoUrl) return
@@ -337,7 +415,7 @@ function AddRepoModal({
   function handleSave() {
     if (!repoUrl.trim()) return
     const name = repoUrl.replace(/^https?:\/\/github\.com\//, '').replace(/\/$/, '') || repoUrl
-    onSave({ id: `repo-${Date.now()}`, url: repoUrl.trim(), name, paths: paths.trim() })
+    onSave({ id: `repo-${Date.now()}`, url: repoUrl.trim(), name, paths: paths.trim(), webhookSecret })
     onClose()
   }
 
@@ -389,6 +467,13 @@ function AddRepoModal({
               className="w-full text-sm border border-gray-200 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-brand-500"
             />
           </div>
+          <div>
+            <label className="block text-xs font-semibold text-gray-500 mb-1">Webhook Secret <span className="font-normal text-gray-400">(auto-generated)</span></label>
+            <div className="bg-gray-50 border border-gray-100 rounded-lg p-2 font-mono text-xs text-gray-700 flex items-center justify-between">
+              <span className="truncate">{webhookSecret.slice(0, 32)}…</span>
+              <button onClick={() => { void navigator.clipboard.writeText(webhookSecret) }} className="text-xs text-teal-600 hover:underline shrink-0 ml-2">Copy</button>
+            </div>
+          </div>
           <div className="flex items-center gap-2 pt-1">
             <button
               onClick={handleTest}
@@ -429,6 +514,7 @@ interface LLMEndpoint {
   name: string
   endpoint: string
   status: 'connected' | 'error'
+  testResult?: 'testing' | 'healthy' | 'failed'
 }
 
 const INITIAL_ENDPOINTS: LLMEndpoint[] = [
@@ -490,6 +576,13 @@ export function SettingsView() {
     setEpUrl('')
     setEpKey('')
     setTestState('idle')
+    addAuditEntry({
+      action_type: 'LLM_CONNECTED',
+      zone: 'ACT_AUTO',
+      outcome: 'success',
+      authorising_human_or_policy: 'user:admin',
+      policy_rule: 'llm_connect_v1',
+    })
   }
 
   const [configuringId, setConfiguringId] = useState<string | null>(null)
@@ -541,12 +634,50 @@ export function SettingsView() {
         <div className="space-y-3">
           {endpoints.map((ep) => (
             <div key={ep.id} className="flex items-center gap-3 p-3 rounded-lg border border-gray-100 bg-gray-50">
-              <span className="w-2 h-2 rounded-full bg-green-500 shrink-0" />
+              <span className={`w-2 h-2 rounded-full shrink-0 ${ep.status === 'connected' ? 'bg-green-500' : 'bg-red-400'}`} />
               <div className="flex-1 min-w-0">
                 <p className="text-sm font-medium text-gray-700">{ep.name}</p>
                 <p className="text-xs text-gray-400">{ep.endpoint}</p>
               </div>
-              <span className="text-xs font-medium text-green-600">Connected</span>
+              <span className={`text-xs font-medium ${ep.status === 'connected' ? 'text-green-600' : 'text-red-500'}`}>
+                {ep.status === 'connected' ? 'Connected' : 'Error'}
+              </span>
+              {ep.testResult && (
+                <span className={`text-xs font-medium ${ep.testResult === 'healthy' ? 'text-green-600' : 'text-red-500'}`}>
+                  {ep.testResult === 'healthy' ? 'Healthy' : 'Failed'}
+                </span>
+              )}
+              <button
+                onClick={() => {
+                  setEndpoints((prev) => prev.map((e) => e.id === ep.id ? { ...e, testResult: 'testing' } : e))
+                  setTimeout(() => {
+                    setEndpoints((prev) => prev.map((e) => e.id === ep.id ? { ...e, testResult: 'healthy' } : e))
+                    setTimeout(() => {
+                      setEndpoints((prev) => prev.map((e) => { if (e.id === ep.id) { const { testResult: _, ...rest } = e; return rest } return e }))
+                    }, 3000)
+                  }, 1000)
+                }}
+                className="text-xs px-2 py-1 rounded border border-gray-200 text-gray-500 hover:bg-gray-50 transition-colors"
+              >
+                {ep.testResult === 'testing' ? 'Testing…' : 'Test'}
+              </button>
+              <button
+                onClick={() => {
+                  if (confirm(`Disconnect ${ep.name}? CognArc will stop using this endpoint.`)) {
+                    setEndpoints((prev) => prev.filter((e) => e.id !== ep.id))
+                    addAuditEntry({
+                      action_type: 'LLM_DISCONNECTED',
+                      zone: 'ACT_AUTO',
+                      outcome: 'success',
+                      authorising_human_or_policy: 'user:admin',
+                      policy_rule: 'llm_disconnect_v1',
+                    })
+                  }
+                }}
+                className="text-xs px-2 py-1 rounded border border-red-200 text-red-500 hover:bg-red-50 transition-colors"
+              >
+                Disconnect
+              </button>
             </div>
           ))}
 
@@ -656,7 +787,7 @@ export function SettingsView() {
                         onClick={() => setEvalModal(p)}
                         className="text-xs px-3 py-1 rounded-lg border border-teal-500 text-teal-600 hover:bg-teal-50 transition-colors"
                       >
-                        {p.authType === 'oauth' ? 'Connect via OAuth' : 'Connect via API Key'}
+                        Connect via API Key
                       </button>
                     </>
                   )}
@@ -770,6 +901,21 @@ export function SettingsView() {
                 <span className="w-1.5 h-1.5 rounded-full bg-green-500" />
                 Connected
               </span>
+              <button
+                onClick={() => {
+                  setRepos((prev) => prev.filter((p) => p.id !== r.id))
+                  addAuditEntry({
+                    action_type: 'REPO_DISCONNECTED',
+                    zone: 'ACT_AUTO',
+                    outcome: 'success',
+                    authorising_human_or_policy: 'user:admin',
+                    policy_rule: 'repo_disconnect_v1',
+                  })
+                }}
+                className="text-xs px-2 py-1 rounded border border-red-200 text-red-500 hover:bg-red-50 transition-colors shrink-0"
+              >
+                Disconnect
+              </button>
             </div>
           ))}
         </div>

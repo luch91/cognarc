@@ -165,6 +165,19 @@ services:
       timeout: 5s
       retries: 5
 
+  url-extractor:
+    build: ./services/url-extractor
+    ports:
+      - "3008:3008"
+    environment:
+      - PYTHONUNBUFFERED=1
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:3008/health')"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
   api-gateway:
     build:
       context: .
@@ -181,6 +194,7 @@ services:
       TRUST_GRADIENT_URL: http://trust-gradient:3005
       COGNITIVE_REWRITE_URL: http://cognitive-rewrite:3006
       VIDEO_ANALYSIS_URL: http://video-analysis:3007
+      URL_EXTRACTOR_URL: http://url-extractor:3008
     depends_on:
       - cognitive-scoring
       - behavioral-sdk
@@ -189,6 +203,7 @@ services:
       - trust-gradient
       - cognitive-rewrite
       - video-analysis
+      - url-extractor
     restart: unless-stopped
 
 volumes:

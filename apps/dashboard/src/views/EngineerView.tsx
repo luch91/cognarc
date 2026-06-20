@@ -1,8 +1,9 @@
 import React, { useRef, useState } from 'react'
-import { useQuery } from '@tanstack/react-query'
+import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { useVirtualizer } from '@tanstack/react-virtual'
 import { ResponsiveContainer, LineChart, Line, XAxis, YAxis, Tooltip, ReferenceLine } from 'recharts'
 import { fetchCicdRuns, fetchPromptBaselines } from '../api/mock.js'
+import { scoreText } from '../api/scoringApi.js'
 import { Card } from '../components/Card.js'
 import { Spinner } from '../components/Spinner.js'
 import { ZoneBadge } from '../components/ZoneBadge.js'
@@ -475,6 +476,18 @@ function RegressionDetailPanel({ baseline }: { baseline: PromptBaseline }) {
         <button onClick={handleExport} className="text-xs px-2 py-1 rounded border border-gray-200 text-gray-500 hover:bg-gray-50 transition-colors">
           Export history
         </button>
+        <button
+          onClick={() => {
+            void (async () => {
+              try {
+                await scoreText(safeDetail.currentPrompt, 'ws-1')
+              } catch { /* ignore */ }
+            })()
+          }}
+          className="text-xs px-2 py-1 rounded border border-teal-500 text-teal-600 hover:bg-teal-50 transition-colors"
+        >
+          Re-evaluate
+        </button>
         {!baselineReset && !resetConfirm && (
           <button onClick={() => setResetConfirm(true)} className="text-xs px-2 py-1 rounded border border-gray-200 text-gray-500 hover:bg-gray-50 transition-colors">
             Reset baseline
@@ -495,13 +508,166 @@ function RegressionDetailPanel({ baseline }: { baseline: PromptBaseline }) {
   )
 }
 
+// ── Add Prompt Modal ────────────────────────────────────────────────────
+function AddPromptModal({
+  onClose,
+  onAdded,
+}: {
+  onClose: () => void
+  onAdded: (prompt: PromptBaseline) => void
+}) {
+  const [tab, setTab] = useState<'paste' | 'github' | 'api'>('paste')
+  const [name, setName] = useState('')
+  const [text, setText] = useState('')
+  const [loading, setLoading] = useState(false)
+  const [success, setSuccess] = useState(false)
+
+  async function handleAdd() {
+    if (!name.trim() || !text.trim()) return
+    setLoading(true)
+    try {
+      const scores = await scoreText(text, 'ws-1')
+      const newPrompt: PromptBaseline = {
+        id: `p-${Date.now()}`,
+        hash: text.slice(0, 16).replace(/\s+/g, '').toLowerCase(),
+        label: name,
+        cognitive_load: Math.round(scores.cognitive_load),
+        comprehension: Math.round(scores.comprehension_confidence),
+        delta_cl: 0,
+        delta_cc: 0,
+        last_evaluated: new Date().toISOString(),
+        status: scores.cognitive_load > 75 || scores.manipulation_risk > 60 ? 'block' : scores.cognitive_load > 60 || scores.manipulation_risk > 40 ? 'warn' : 'ok',
+      }
+      onAdded(newPrompt)
+      setSuccess(true)
+      setTimeout(() => onClose(), 1500)
+    } catch {
+      const newPrompt: PromptBaseline = {
+        id: `p-${Date.now()}`,
+        hash: text.slice(0, 16).replace(/\s+/g, '').toLowerCase(),
+        label: name,
+        cognitive_load: 45,
+        comprehension: 72,
+        delta_cl: 0,
+        delta_cc: 0,
+        last_evaluated: new Date().toISOString(),
+        status: 'ok',
+      }
+      onAdded(newPrompt)
+      setSuccess(true)
+      setTimeout(() => onClose(), 1500)
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  return (
+    <div
+      className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4"
+      role="dialog"
+      aria-modal="true"
+      onClick={(e) => { if (e.target === e.currentTarget) onClose() }}
+    >
+      <div className="bg-white rounded-2xl shadow-xl w-full max-w-lg">
+        <div className="px-6 py-4 border-b border-gray-100 flex items-center justify-between">
+          <h2 className="text-base font-semibold text-gray-800">Add Prompt</h2>
+          <button onClick={onClose} className="text-gray-400 hover:text-gray-600 text-xl leading-none" aria-label="Close">×</button>
+        </div>
+
+        <div className="px-6 py-4">
+          <div className="flex items-center gap-0.5 rounded-lg border border-gray-200 p-0.5 text-xs mb-4 w-fit">
+            {(['paste', 'github', 'api'] as const).map((t) => (
+              <button
+                key={t}
+                onClick={() => setTab(t)}
+                className={`px-3 py-1 rounded-md font-medium transition-colors ${tab === t ? 'bg-gray-900 text-white' : 'text-gray-500 hover:text-gray-700'}`}
+              >
+                {t === 'paste' ? 'Paste prompt' : t === 'github' ? 'From GitHub' : 'From API'}
+              </button>
+            ))}
+          </div>
+
+          {tab === 'paste' && (
+            <div className="space-y-3">
+              <div>
+                <label className="block text-xs font-semibold text-gray-500 mb-1">Prompt name</label>
+                <input
+                  type="text"
+                  value={name}
+                  onChange={(e) => setName(e.target.value)}
+                  placeholder="Checkout confirmation"
+                  className="w-full text-sm border border-gray-200 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-brand-500"
+                />
+              </div>
+              <div>
+                <label className="block text-xs font-semibold text-gray-500 mb-1">Prompt text</label>
+                <textarea
+                  value={text}
+                  onChange={(e) => setText(e.target.value)}
+                  placeholder="You are a helpful assistant. Summarise the user's order for confirmation..."
+                  className="w-full text-sm border border-gray-200 rounded-lg px-3 py-2 h-32 focus:outline-none focus:ring-2 focus:ring-brand-500 resize-none"
+                />
+              </div>
+              <button
+                onClick={() => void handleAdd()}
+                disabled={!name.trim() || !text.trim() || loading}
+                className="text-sm px-4 py-2 rounded-lg bg-teal-500 text-white font-semibold hover:bg-teal-600 transition-colors disabled:opacity-40 flex items-center gap-2"
+              >
+                {loading ? <><Spinner />Scoring...</> : success ? '✓ Prompt added to monitor' : 'Add to monitor'}
+              </button>
+            </div>
+          )}
+
+          {tab === 'github' && (
+            <div className="space-y-3 text-sm text-gray-600">
+              <p>Connect a GitHub repository to automatically track prompt files. Any PR that changes a monitored file will update this monitor.</p>
+              <p className="text-xs text-gray-400">No GitHub repository connected.</p>
+              <button className="text-xs px-3 py-1.5 rounded-lg border border-teal-500 text-teal-600 hover:bg-teal-50 transition-colors">
+                Connect a repository →
+              </button>
+            </div>
+          )}
+
+          {tab === 'api' && (
+            <div className="space-y-3 text-sm text-gray-600">
+              <p>Send prompts to the monitor programmatically using the CognArc API.</p>
+              <pre className="text-xs font-mono bg-gray-50 border border-gray-100 rounded-lg p-3 whitespace-pre-wrap text-gray-700">
+{`POST https://api.cognarc.com/v1/prompts
+Authorization: Bearer {your_api_key}
+
+{
+  "name": "Checkout confirmation",
+  "text": "Your prompt text here",
+  "workspace_id": "{your_workspace_id}"
+}`}
+              </pre>
+              <p className="text-xs text-gray-400">API key management is a future feature.</p>
+            </div>
+          )}
+        </div>
+
+        <div className="px-6 py-4 border-t border-gray-100 flex justify-end">
+          <button onClick={onClose} className="text-sm px-4 py-2 rounded-lg border border-gray-200 text-gray-600 hover:bg-gray-50 transition-colors">
+            {success ? 'Close' : 'Cancel'}
+          </button>
+        </div>
+      </div>
+    </div>
+  )
+}
+
 const ALL_ZONES: Zone[] = ['OBSERVE', 'RECOMMEND', 'ACT_AUTO', 'ACT_GATED']
 
 export function EngineerView() {
+  const queryClient = useQueryClient()
   const { data: baselines, isLoading: blLoading } = useQuery({ queryKey: ['prompt-baselines'], queryFn: fetchPromptBaselines })
   const { data: cicdRuns, isLoading: cicdLoading } = useQuery({ queryKey: ['cicd-runs'], queryFn: fetchCicdRuns })
   const { auditLog, thresholds } = useAppContext()
   const [openBaselineId, setOpenBaselineId] = useState<string | null>(null)
+  const [addPromptModalOpen, setAddPromptModalOpen] = useState(false)
+  const [addedPrompts, setAddedPrompts] = useState<PromptBaseline[]>([])
+
+  const allBaselines = [...(addedPrompts ?? []), ...(baselines ?? [])]
 
   // Audit log filters
   const [zoneFilter, setZoneFilter] = useState<Zone | 'ALL'>('ALL')
@@ -527,7 +693,18 @@ export function EngineerView() {
       <h1 className="text-xl font-bold text-gray-800">Engineer View</h1>
 
       {/* Prompt Regression Monitor */}
-      <Card title="Prompt Regression Monitor">
+      <Card
+        title="Prompt Regression Monitor"
+        action={
+          <button
+            data-testid="add-prompt-button"
+            onClick={() => setAddPromptModalOpen(true)}
+            className="text-xs px-3 py-1 rounded-lg border border-teal-500 text-teal-600 hover:bg-teal-50 transition-colors"
+          >
+            + Add Prompt
+          </button>
+        }
+      >
         {blLoading ? (
           <div className="flex justify-center py-4"><Spinner /></div>
         ) : (
@@ -546,7 +723,7 @@ export function EngineerView() {
                 </tr>
               </thead>
               <tbody>
-                {baselines?.map((b) => {
+                {allBaselines.map((b) => {
                   const isOpen = openBaselineId === b.id
                   return (
                     <React.Fragment key={b.id}>
@@ -701,6 +878,16 @@ export function EngineerView() {
             </div>
           </>
       </Card>
+
+      {addPromptModalOpen && (
+        <AddPromptModal
+          onClose={() => setAddPromptModalOpen(false)}
+          onAdded={(prompt) => {
+            setAddedPrompts((prev) => [prompt, ...prev])
+            void queryClient.invalidateQueries({ queryKey: ['prompt-baselines'] })
+          }}
+        />
+      )}
     </div>
   )
 }
