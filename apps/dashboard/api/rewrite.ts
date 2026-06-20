@@ -6,6 +6,8 @@ const OPENROUTER_API_KEY = process.env.OPENROUTER_API_KEY ?? ''
 const GROQ_MODELS: Record<string, string> = {
   campaign: 'qwen/qwen3-32b',
   landing_page: 'qwen/qwen3-32b',
+  email: 'qwen/qwen3-32b',
+  social_ad: 'llama-3.3-70b-versatile',
   voiceover: 'llama-3.3-70b-versatile',
   prompt: 'qwen/qwen3-32b',
   microcopy: 'llama-3.1-8b-instant',
@@ -33,6 +35,18 @@ const COPY_TYPE_INSTRUCTIONS: Record<string, string> = {
 - Each sentence should do one job: either inform, persuade, or direct
 - CTA copy should describe the action, not create urgency
 - Do not change the page structure or section order — rewrite copy only`,
+  email: `- Subject line must be clear and honest — no clickbait or false urgency
+- Open with the value or reason for the email, not a teaser
+- Remove "Dear valued customer" and similar empty rapport language
+- Each paragraph should have one purpose: inform, request, or direct
+- Unsubscribe-friendly: make it easy to understand what the email is about from the first line
+- Remove manufactured scarcity ("only 3 spots left", "expires tonight")`,
+  social_ad: `- First 3 words must communicate the core message — users scroll fast
+- Remove urgency language that doesn't reflect a real deadline
+- Social proof must be verifiable or removed ("Join 10,000+ users" needs a source)
+- CTA should describe the action, not create pressure ("Learn more" not "Don't miss out")
+- Keep under 125 characters for primary text where possible
+- Emoji use is fine but should not replace clear language`,
   microcopy: `- Maximum clarity in minimum words
 - Button labels should describe what happens when clicked
 - Error messages should say what went wrong and what to do next

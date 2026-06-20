@@ -1,6 +1,6 @@
 export interface RewriteRequest {
   originalText: string
-  copyType: 'campaign' | 'landing_page' | 'microcopy' | 'voiceover' | 'prompt' | 'long_form'
+  copyType: 'campaign' | 'landing_page' | 'email' | 'social_ad' | 'microcopy' | 'voiceover' | 'prompt' | 'long_form'
   scores: {
     cognitiveLoad: number
     comprehensionConfidence: number

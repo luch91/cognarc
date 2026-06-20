@@ -13,8 +13,8 @@ import { useAppContext } from '../context/AppContext.js'
 const COPY_TYPES = [
   { label: 'Campaign copy',  value: 'campaign'      },
   { label: 'Landing page',   value: 'landing_page'  },
-  { label: 'Email',          value: 'campaign'      },
-  { label: 'Social ad',      value: 'campaign'      },
+  { label: 'Email',          value: 'email'          },
+  { label: 'Social ad',      value: 'social_ad'     },
   { label: 'CTA',            value: 'microcopy'     },
 ] as const
 
