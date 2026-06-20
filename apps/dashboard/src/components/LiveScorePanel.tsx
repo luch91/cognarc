@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { scoreTextStream, scoreTextRemote, type LiveScoreResult, type ScoringProgress } from '../api/scoringApi.js'
+import { scoreTextStream, scoreTextRemote, type LiveScoreResult, type ScoringProgress, type ScoringMode } from '../api/scoringApi.js'
 import { useAppContext } from '../context/AppContext.js'
 import { Card } from './Card.js'
 import { Spinner } from './Spinner.js'
@@ -42,14 +42,15 @@ export function LiveScorePanel() {
   const [result, setResult] = useState<LiveScoreResult | null>(lastLiveScoreResult)
   const [error, setError] = useState<string | null>(null)
   const [progress, setProgress] = useState<ScoringProgress | null>(null)
+  const [scoringMode, setScoringMode] = useState<ScoringMode>('accurate')
 
   async function handleScore() {
     if (!text.trim() || state === 'loading') return
     setState('loading')
     setError(null)
-    setProgress({ phase: 'Connecting to scoring service…', percent: 0 })
+    setProgress({ phase: `Connecting to scoring service (${scoringMode} mode)…`, percent: 0 })
     try {
-      const res = await scoreTextStream(text.trim(), (p) => setProgress(p))
+      const res = await scoreTextStream(text.trim(), (p) => setProgress(p), scoringMode)
       setResult(res)
       setState('done')
       setProgress(null)
@@ -57,7 +58,7 @@ export function LiveScorePanel() {
     } catch {
       try {
         setProgress({ phase: 'Streaming unavailable — falling back…', percent: 10 })
-        const res = await scoreTextRemote(text.trim())
+        const res = await scoreTextRemote(text.trim(), scoringMode)
         setResult(res)
         setState('done')
         setProgress(null)
@@ -100,6 +101,32 @@ export function LiveScorePanel() {
               {p.slice(0, 40)}…
             </button>
           ))}
+        </div>
+
+        {/* Mode toggle */}
+        <div className="flex items-center gap-2">
+          <span className="text-xs text-gray-400 font-medium">Mode:</span>
+          <div className="flex items-center gap-0.5 rounded-lg border border-gray-200 p-0.5 text-xs">
+            <button
+              onClick={() => setScoringMode('fast')}
+              className={`px-3 py-1 rounded-md font-medium transition-colors ${
+                scoringMode === 'fast' ? 'bg-gray-900 text-white' : 'text-gray-500 hover:text-gray-700'
+              }`}
+            >
+              Fast (INT8)
+            </button>
+            <button
+              onClick={() => setScoringMode('accurate')}
+              className={`px-3 py-1 rounded-md font-medium transition-colors ${
+                scoringMode === 'accurate' ? 'bg-gray-900 text-white' : 'text-gray-500 hover:text-gray-700'
+              }`}
+            >
+              Accurate (FP16)
+            </button>
+          </div>
+          <span className="text-[10px] text-gray-300">
+            {scoringMode === 'fast' ? '~2x faster · slight quality trade-off' : 'Full precision · highest fidelity'}
+          </span>
         </div>
 
         {/* Input */}

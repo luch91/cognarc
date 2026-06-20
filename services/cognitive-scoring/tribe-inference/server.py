@@ -1,7 +1,9 @@
 """
 TRIBE v2 local inference server.
 Uses TribeModel.from_pretrained("facebook/tribev2") — the official API.
-Serves predictions on :8080 for text stimulus types.
+Supports two inference modes:
+  - accurate (default): Full-precision FP16 model — highest fidelity
+  - fast: INT8 quantized via bitsandbytes — ~2x faster, ~50% less VRAM
 
 Requirements:
   pip install -r requirements.txt
@@ -26,50 +28,75 @@ from huggingface_hub import login as _hf_login
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger("tribe-inference")
 
-# Add this script's directory to PATH so the bundled ffmpeg.exe is found by tribev2.
 os.environ["PATH"] = os.path.dirname(os.path.abspath(__file__)) + os.pathsep + os.environ.get("PATH", "")
 
 FSAVERAGE5_VERTICES = 20484
 MODEL_ID = "facebook/tribev2"
 
-tribe_model = None
+tribe_model_accurate = None
+tribe_model_fast = None
+
+
+def _resolve_checkpoint() -> "tuple[pathlib.Path, pathlib.Path]":
+    import pathlib
+    from huggingface_hub import hf_hub_download
+    import shutil
+
+    local_ckpt_dir = pathlib.Path("./hf_model/facebook_tribev2").resolve()
+    local_ckpt_dir.mkdir(parents=True, exist_ok=True)
+
+    config_path = local_ckpt_dir / "config.yaml"
+    ckpt_path = local_ckpt_dir / "best.ckpt"
+
+    if not config_path.exists():
+        cached = hf_hub_download(repo_id=MODEL_ID, filename="config.yaml")
+        shutil.copy(cached, config_path)
+        logger.info(f"Copied config.yaml from {cached}")
+
+    if not ckpt_path.exists():
+        cached = hf_hub_download(repo_id=MODEL_ID, filename="best.ckpt")
+        shutil.copy(cached, ckpt_path)
+        logger.info(f"Copied best.ckpt from {cached}")
+
+    return local_ckpt_dir, ckpt_path
 
 
 def load_model() -> None:
-    global tribe_model
+    global tribe_model_accurate, tribe_model_fast
 
-    logger.info(f"Loading {MODEL_ID} via TribeModel.from_pretrained()…")
+    logger.info(f"Loading {MODEL_ID} (accurate — FP16)…")
     try:
         from tribev2 import TribeModel  # type: ignore
-        import pathlib
-        from huggingface_hub import hf_hub_download
 
-        # Use hf_hub_download to resolve the correct cached file paths — this
-        # works regardless of snapshot hash or cache location, and respects
-        # HF_HUB_OFFLINE=1 (set by Cloud Run env var) for no-network operation.
-        local_ckpt_dir = pathlib.Path("./hf_model/facebook_tribev2").resolve()
-        local_ckpt_dir.mkdir(parents=True, exist_ok=True)
-
-        config_path = local_ckpt_dir / "config.yaml"
-        ckpt_path = local_ckpt_dir / "best.ckpt"
-
-        if not config_path.exists():
-            cached = hf_hub_download(repo_id=MODEL_ID, filename="config.yaml")
-            import shutil
-            shutil.copy(cached, config_path)
-            logger.info(f"Copied config.yaml from {cached}")
-
-        if not ckpt_path.exists():
-            cached = hf_hub_download(repo_id=MODEL_ID, filename="best.ckpt")
-            import shutil
-            shutil.copy(cached, ckpt_path)
-            logger.info(f"Copied best.ckpt from {cached}")
-
-        tribe_model = TribeModel.from_pretrained(local_ckpt_dir, cache_folder="./cache")
-        logger.info("TRIBE v2 loaded successfully")
+        local_ckpt_dir, _ = _resolve_checkpoint()
+        tribe_model_accurate = TribeModel.from_pretrained(local_ckpt_dir, cache_folder="./cache")
+        logger.info("TRIBE v2 accurate (FP16) loaded successfully")
     except Exception as exc:
-        logger.error(f"Failed to load TRIBE v2: {exc}")
-        logger.warning("Running in stub mode — synthetic activations will be returned")
+        logger.error(f"Failed to load TRIBE v2 accurate: {exc}")
+        logger.warning("Accurate mode unavailable — stub activations will be returned")
+
+    logger.info(f"Loading {MODEL_ID} (fast — INT8 quantized)…")
+    try:
+        from tribev2 import TribeModel  # type: ignore
+        import torch
+
+        local_ckpt_dir, ckpt_path = _resolve_checkpoint()
+
+        try:
+            import bitsandbytes as bnb  # type: ignore  # noqa: F401
+            from accelerate import init_empty_weights, load_checkpoint_and_dispatch  # type: ignore
+
+            tribe_model_fast = TribeModel.from_pretrained(local_ckpt_dir, cache_folder="./cache")
+            tribe_model_fast = torch.quantization.quantize_dynamic(
+                tribe_model_fast, {torch.nn.Linear}, dtype=torch.qint8
+            )
+            logger.info("TRIBE v2 fast (INT8) loaded successfully")
+        except Exception as q_exc:
+            logger.warning(f"INT8 quantization failed ({q_exc}), fast mode will share accurate model")
+            tribe_model_fast = tribe_model_accurate
+    except Exception as exc:
+        logger.error(f"Failed to load TRIBE v2 fast: {exc}")
+        tribe_model_fast = tribe_model_accurate
 
 
 # ---------------------------------------------------------------------------
@@ -81,12 +108,14 @@ class PredictRequest(BaseModel):
     stimulus_type: Literal["text", "image", "audio", "video"]
     content: str
     workspace_id: str
+    mode: Literal["fast", "accurate"] = "accurate"
 
 
 class PredictResponse(BaseModel):
     cortical_activations: list[float]
     model_version: str
     latency_ms: int
+    mode: str
 
 
 # ---------------------------------------------------------------------------
@@ -95,14 +124,14 @@ class PredictResponse(BaseModel):
 
 
 def run_inference(req: PredictRequest) -> tuple[list[float], str]:
-    if tribe_model is None:
-        return _stub_activations(req), "tribe-v2-stub"
+    model = tribe_model_fast if req.mode == "fast" else tribe_model_accurate
+    version_suffix = "int8" if req.mode == "fast" else "fp16"
+
+    if model is None:
+        return _stub_activations(req), f"tribe-v2-stub-{version_suffix}"
 
     try:
         if req.stimulus_type == "text":
-            # Convert text → audio using edge-tts (local, no external API, no rate limits).
-            # Then pass the audio file to get_events_dataframe(audio_path=...) which
-            # bypasses tribev2's gTTS TextToEvents path entirely.
             import tempfile, pathlib, asyncio, edge_tts  # type: ignore
 
             with tempfile.NamedTemporaryFile(
@@ -110,19 +139,17 @@ def run_inference(req: PredictRequest) -> tuple[list[float], str]:
             ) as f:
                 audio_path = pathlib.Path(f.name)
 
-            # Pad short inputs — tribev2 alignment fails if <~20 words (unmatched ratio too high).
             content = req.content
             if len(content.split()) < 20:
                 content = content + " " + content
             communicate = edge_tts.Communicate(content, voice="en-US-AriaNeural")
             asyncio.run(communicate.save(str(audio_path)))
-            logger.info(f"Generated TTS audio via edge-tts: {audio_path}")
+            logger.info(f"Generated TTS audio via edge-tts ({req.mode}): {audio_path}")
 
-            df = tribe_model.get_events_dataframe(audio_path=str(audio_path))  # type: ignore[union-attr]
-            preds, _ = tribe_model.predict(events=df)  # type: ignore[union-attr]
+            df = model.get_events_dataframe(audio_path=str(audio_path))  # type: ignore[union-attr]
+            preds, _ = model.predict(events=df)  # type: ignore[union-attr]
             audio_path.unlink(missing_ok=True)
 
-            # preds shape: (n_timesteps, n_vertices) — take mean over time
             activations = np.mean(preds, axis=0).astype(np.float32)
 
             if len(activations) != FSAVERAGE5_VERTICES:
@@ -132,14 +159,14 @@ def run_inference(req: PredictRequest) -> tuple[list[float], str]:
                     activations,
                 )
 
-            return activations.tolist(), "tribe-v2"
+            return activations.tolist(), f"tribe-v2-{version_suffix}"
         else:
             logger.warning(f"stimulus_type={req.stimulus_type} — stub activations returned")
-            return _stub_activations(req), "tribe-v2-stub"
+            return _stub_activations(req), f"tribe-v2-stub-{version_suffix}"
 
     except Exception as exc:
         logger.error(f"TRIBE inference error: {exc}")
-        return _stub_activations(req), "tribe-v2-stub"
+        return _stub_activations(req), f"tribe-v2-stub-{version_suffix}"
 
 
 def _stub_activations(req: PredictRequest) -> list[float]:
@@ -170,9 +197,12 @@ app = FastAPI(title="TRIBE v2 Inference Server", lifespan=lifespan)
 
 
 @app.get("/health")
-def health() -> dict[str, str]:
-    status = "ready" if tribe_model is not None else "stub"
-    return {"status": status, "model": MODEL_ID}
+def health() -> dict[str, object]:
+    return {
+        "model": MODEL_ID,
+        "accurate": "ready" if tribe_model_accurate is not None else "stub",
+        "fast": "ready" if tribe_model_fast is not None else "stub",
+    }
 
 
 @app.post("/predict", response_model=PredictResponse)
@@ -188,4 +218,5 @@ def predict(req: PredictRequest) -> PredictResponse:
         cortical_activations=activations,
         model_version=model_version,
         latency_ms=int((time.time() - start) * 1000),
+        mode=req.mode,
     )

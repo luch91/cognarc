@@ -32,15 +32,17 @@ export function getScoringProxyUrl(): string {
   return SCORING_PROXY_URL
 }
 
-export async function scoreTextRemote(text: string): Promise<LiveScoreResult> {
+export type ScoringMode = 'fast' | 'accurate'
+
+export async function scoreTextRemote(text: string, mode: ScoringMode = 'accurate'): Promise<LiveScoreResult> {
   const baseUrl = SCORING_PROXY_URL || ''
   const endpoint = baseUrl ? `${baseUrl}/api/score` : '/api/score'
 
   const res = await fetch(endpoint, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ stimulus_type: 'text', content: text, workspace_id: 'trial' }),
-    signal: AbortSignal.timeout(310_000),
+    body: JSON.stringify({ stimulus_type: 'text', content: text, workspace_id: 'trial', mode }),
+    signal: AbortSignal.timeout(mode === 'fast' ? 120_000 : 310_000),
   })
   if (!res.ok) {
     const body = await res.text()
@@ -54,6 +56,7 @@ export interface ScoringProgress { phase: string; percent: number; elapsed_s?: n
 export async function scoreTextStream(
   text: string,
   onProgress: (progress: ScoringProgress) => void,
+  mode: ScoringMode = 'accurate',
 ): Promise<LiveScoreResult> {
   const baseUrl = SCORING_PROXY_URL || ''
   const endpoint = baseUrl ? `${baseUrl}/api/score-stream` : '/api/score-stream'
@@ -61,8 +64,8 @@ export async function scoreTextStream(
   const res = await fetch(endpoint, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ stimulus_type: 'text', content: text, workspace_id: 'trial' }),
-    signal: AbortSignal.timeout(310_000),
+    body: JSON.stringify({ stimulus_type: 'text', content: text, workspace_id: 'trial', mode }),
+    signal: AbortSignal.timeout(mode === 'fast' ? 120_000 : 310_000),
   })
 
   if (!res.ok) {

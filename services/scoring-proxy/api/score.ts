@@ -78,6 +78,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
   try {
     const authHeaders = await getAuthHeaders()
 
+    const mode = (body.mode as string) ?? 'accurate'
     const tribeRes = await fetch(`${TRIBE_ENDPOINT}/predict`, {
       method: 'POST',
       headers: {
@@ -88,8 +89,9 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         stimulus_type: body.stimulus_type ?? 'text',
         content: body.content,
         modality: body.stimulus_type ?? 'text',
+        mode,
       }),
-      signal: AbortSignal.timeout(120_000),
+      signal: AbortSignal.timeout(mode === 'fast' ? 60_000 : 120_000),
     })
 
     if (!tribeRes.ok) {

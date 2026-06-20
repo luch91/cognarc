@@ -66,6 +66,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     const authHeaders = await getAuthHeaders()
     sendEvent('progress', { phase: 'Request accepted — warming inference engine…', percent: 5, elapsed_s: Math.round((Date.now() - startTime) / 1000) })
 
+    const mode = (body.mode as string) ?? 'accurate'
     const tribeRes = await fetch(`${TRIBE_ENDPOINT}/predict`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json', ...authHeaders },
@@ -73,8 +74,9 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         stimulus_type: body.stimulus_type ?? 'text',
         content: body.content,
         modality: body.stimulus_type ?? 'text',
+        mode,
       }),
-      signal: AbortSignal.timeout(300_000),
+      signal: AbortSignal.timeout(mode === 'fast' ? 120_000 : 300_000),
     })
 
     clearInterval(phaseTimer)
