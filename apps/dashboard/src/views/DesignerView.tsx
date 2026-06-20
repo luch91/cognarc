@@ -3,6 +3,7 @@ import { Card } from '../components/Card.js'
 import { ScoreGauge } from '../components/ScoreGauge.js'
 import { Spinner } from '../components/Spinner.js'
 import { CognitiveScoreCard } from '../components/CognitiveScoreCard.js'
+import { OnboardingFlowManager } from '../components/OnboardingFlowManager.js'
 import { extractUrl } from '../api/urlExtractorApi.js'
 import { scorePage } from '../api/pageScorerApi.js'
 import type { PageScoringResult, SectionScores } from '../api/pageScorerApi.js'
@@ -12,14 +13,6 @@ const SHARE_URL = 'https://cognarc.app/reports/ab-comparison-demo-001'
 const VARIANT_A = { label: 'Variant A', cognitive_load: 38, comprehension: 82, trust: 86, manipulation: 9 }
 const VARIANT_B = { label: 'Variant B', cognitive_load: 67, comprehension: 58, trust: 61, manipulation: 28 }
 
-const ONBOARDING_STEPS = [
-  { step: 'Welcome', load: 28, comprehension: 88, drop: 0 },
-  { step: 'Profile', load: 42, comprehension: 79, drop: 4 },
-  { step: 'Connect SDK', load: 71, comprehension: 54, drop: 22 },
-  { step: 'Configure', load: 83, comprehension: 41, drop: 39 },
-  { step: 'First Score', load: 55, comprehension: 62, drop: 10 },
-  { step: 'Complete', load: 32, comprehension: 84, drop: 4 },
-]
 
 function Delta({ a, b, invert = false }: { a: number; b: number; invert?: boolean }) {
   const diff = b - a
@@ -540,57 +533,7 @@ export function DesignerView() {
 
       {/* Onboarding Flow Analyzer */}
       <Card title="Onboarding Flow Analyzer — Step-by-Step Load Curve">
-        <div className="overflow-x-auto">
-          <table className="w-full text-sm" aria-label="Onboarding flow cognitive scores">
-            <thead>
-              <tr className="text-xs text-gray-400 uppercase tracking-wide border-b border-gray-100">
-                <th className="text-left py-2 pr-4 font-semibold">Step</th>
-                <th className="text-right py-2 px-2 font-semibold">Cognitive Load</th>
-                <th className="text-right py-2 px-2 font-semibold">Comprehension</th>
-                <th className="text-right py-2 pl-2 font-semibold">Drop-off %</th>
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-gray-50">
-              {ONBOARDING_STEPS.map((s) => (
-                <tr key={s.step}>
-                  <td className="py-2 pr-4">
-                    <div className="flex flex-wrap items-center gap-1.5">
-                      <span className="font-medium text-gray-700">{s.step}</span>
-                      {s.step === 'Profile' && (
-                        <span className="text-[10px] font-bold px-1.5 py-0.5 rounded-full bg-orange-500 text-white whitespace-nowrap">⚠ Trust Timing</span>
-                      )}
-                      {s.load > 80 && (
-                        <span className="text-[10px] font-bold px-1.5 py-0.5 rounded-full bg-red-500 text-white whitespace-nowrap">⚠ Choice Overload</span>
-                      )}
-                      {s.comprehension < 55 && (
-                        <span className="text-[10px] font-bold px-1.5 py-0.5 rounded-full bg-amber-500 text-white whitespace-nowrap">⚠ Comprehension Gap</span>
-                      )}
-                    </div>
-                  </td>
-                  <td className="py-2 px-2 text-right">
-                    <span className={`font-semibold tabular-nums ${s.load > 70 ? 'text-danger' : s.load > 50 ? 'text-warning' : 'text-success'}`}>
-                      {s.load}
-                    </span>
-                  </td>
-                  <td className="py-2 px-2 text-right">
-                    <span className={`font-semibold tabular-nums ${s.comprehension < 55 ? 'text-danger' : s.comprehension < 70 ? 'text-warning' : 'text-success'}`}>
-                      {s.comprehension}
-                    </span>
-                  </td>
-                  <td className="py-2 pl-2 text-right tabular-nums text-gray-500">
-                    {s.drop > 0 ? `-${s.drop}%` : '—'}
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
-        <p className="text-xs text-gray-400 mt-3">
-          Steps with load &gt; 70 are highlighted in red. Steps with comprehension &lt; 55 indicate likely abandonment.
-        </p>
-        <p className="text-xs text-gray-400 mt-1">
-          ⚠ Comprehension Gap: CC &lt; 55 · ⚠ Choice Overload: CL &gt; 83 · ⚠ Trust Timing: data requested before value demonstrated
-        </p>
+        <OnboardingFlowManager />
       </Card>
     </div>
   )

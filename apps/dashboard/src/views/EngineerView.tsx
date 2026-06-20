@@ -5,6 +5,7 @@ import { ResponsiveContainer, LineChart, Line, XAxis, YAxis, Tooltip, ReferenceL
 import { fetchCicdRuns, fetchPromptBaselines } from '../api/mock.js'
 import { scoreTextRemote } from '../api/scoringApi.js'
 import { Card } from '../components/Card.js'
+import { LiveScorePanel } from '../components/LiveScorePanel.js'
 import { Spinner } from '../components/Spinner.js'
 import { ZoneBadge } from '../components/ZoneBadge.js'
 import { useAppContext } from '../context/AppContext.js'
@@ -706,6 +707,9 @@ export function EngineerView() {
   return (
     <div className="space-y-6">
       <h1 className="text-xl font-bold text-gray-800">Engineer View</h1>
+
+      {/* Live Cognitive Score — persists across views */}
+      <LiveScorePanel />
 
       {/* Prompt Regression Monitor */}
       <Card

@@ -4,6 +4,7 @@ import {
 } from 'recharts'
 import { fetchAlignmentTrend, fetchModelProfiles } from '../api/mock.js'
 import { Card } from '../components/Card.js'
+import { LiveEventStream } from '../components/LiveEventStream.js'
 import { ScoreGauge } from '../components/ScoreGauge.js'
 import { Spinner } from '../components/Spinner.js'
 import { useAppContext } from '../context/AppContext.js'
@@ -87,40 +88,8 @@ export function PMView() {
         </div>
       </Card>
 
-      {/* Recent Event Labels */}
-      <Card title="Recent Event Labels">
-        <p className="text-xs text-gray-400 mb-3">Labels applied within 200ms of event occurrence · Writing back to Amplitude + Segment</p>
-        <div className="overflow-x-auto">
-          <table className="w-full text-sm" aria-label="Recent event labels">
-            <thead>
-              <tr className="text-xs text-gray-400 uppercase border-b border-gray-100">
-                <th className="text-left py-2 pr-4 font-semibold">Raw Event</th>
-                <th className="text-left py-2 px-2 font-semibold">Cognitive Label</th>
-                <th className="text-left py-2 px-2 font-semibold">Platform</th>
-                <th className="text-right py-2 pl-2 font-semibold">Time</th>
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-gray-50">
-              {[
-                { event: 'Rage click on Submit button',          label: 'Confusion / violated expectation', platform: 'Amplitude', time: '2:18 PM', color: 'text-red-500'   },
-                { event: 'Field re-entry × 4 (email field)',    label: 'Working memory overload',          platform: 'Segment',   time: '2:15 PM', color: 'text-red-500'   },
-                { event: 'Session abandonment post-modal',       label: 'Trust erosion trigger',            platform: 'PostHog',   time: '2:11 PM', color: 'text-red-500'   },
-                { event: 'Dwell 47s — no scroll (pricing pg)',  label: 'Cognitive load stall',             platform: 'Amplitude', time: '2:08 PM', color: 'text-amber-500' },
-                { event: 'Scroll reversal at step 3',            label: 'Comprehension failure',            platform: 'Segment',   time: '1:59 PM', color: 'text-red-500'   },
-                { event: 'High scroll velocity, 0 clicks',       label: 'Low attention engagement',         platform: 'GA4',       time: '1:54 PM', color: 'text-amber-500' },
-                { event: 'Repeated visit: onboarding page',      label: 'Unresolved comprehension',         platform: 'PostHog',   time: '1:47 PM', color: 'text-amber-500' },
-              ].map((row, i) => (
-                <tr key={i}>
-                  <td className="py-2 pr-4 text-gray-600 font-mono text-xs">{row.event}</td>
-                  <td className={`py-2 px-2 text-xs font-semibold ${row.color}`}>{row.label}</td>
-                  <td className="py-2 px-2 text-xs text-gray-500">{row.platform}</td>
-                  <td className="py-2 pl-2 text-xs text-gray-400 text-right tabular-nums">{row.time}</td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
-      </Card>
+      {/* Live Event Stream (STREAM-03 + STREAM-04) — replaces hardcoded Recent Event Labels */}
+      <LiveEventStream />
 
       {/* Onboarding load curve */}
       <Card title="Onboarding Flow — Cognitive Load Curve">

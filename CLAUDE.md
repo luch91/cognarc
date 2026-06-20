@@ -290,6 +290,11 @@ Update this section as prompts are completed:
 - [x] LLM-C06 · Prompt Regression Monitor clickable rows (score history, diff, impact summary, long_form rewrites)
 - [x] LLM-C07 · Video Analysis Service live (CognitiveScoreCard in VideoReport, voiceover loading text fix, PostHog tracking stubs, Supabase video_report persistence)
 - [x] LLM-C08 · Wire video findings → Supabase (audit_log + act_gated_queue inserts, evaluation_queue hydration from Supabase on mount)
+- [x] STREAM-01 · Supabase schema for analytics event capture (`analytics_events` table, RLS, indexes, realtime publication)
+- [x] STREAM-02 · Webhook/ingest handlers write to the table (cognitive-label-map, capture-analytics-event, PII filter, 5 platform webhooks)
+- [x] STREAM-03 · PM view Live Event Stream panel (connection health, realtime scrolling table, filters, pause toggle)
+- [x] STREAM-04 · Event detail drawer (raw properties, cognitive label explanation, write-back status with retry)
+- [x] STREAM-05 · E2E tests for live event stream
 
 ---
 

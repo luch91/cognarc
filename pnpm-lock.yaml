@@ -283,6 +283,9 @@ importers:
       '@cognarc/types':
         specifier: workspace:*
         version: link:../../packages/cognarc-types
+      '@supabase/supabase-js':
+        specifier: ^2.43.0
+        version: 2.108.2
       express:
         specifier: ^4.19.0
         version: 4.22.2

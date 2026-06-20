@@ -3,11 +3,23 @@
 
 // ── Types ──────────────────────────────────────────────────────────────────────
 
+export interface OnboardingStep {
+  name: string
+  matchType: 'route' | 'event' | 'manual'
+  matchValue?: string | undefined
+  id?: string | undefined   // step UUID from Supabase (resolved at init or fetched)
+}
+
 export interface SDKConfig {
   workspaceId: string
   endpoint: string
   sessionOptOut?: boolean | undefined
   sampleRate?: number | undefined   // 0–1, default 1.0
+  onboardingSteps?: OnboardingStep[] | undefined
+  supabaseUrl?: string | undefined
+  supabaseAnonKey?: string | undefined
+  fetchStepsFromAPI?: boolean | undefined
+  stepsAPIUrl?: string | undefined    // defaults to supabaseUrl + /rest/v1/onboarding_steps
 }
 
 export interface BehavioralEvent {
@@ -17,6 +29,7 @@ export interface BehavioralEvent {
   sid: string          // anonymous session id (random, not tied to user)
   meta?: Record<string, unknown> | undefined
   label?: string | undefined   // cognitive label if mapped
+  stepName?: string | undefined  // onboarding step name (null if not in a tracked step)
 }
 
 // ── Cognitive label mapping ────────────────────────────────────────────────────
@@ -71,6 +84,12 @@ export class CognArcSDK {
   private dwellTarget: Element | null = null
   private dwellStart = 0
 
+  // Step tracking state
+  private steps: OnboardingStep[] = []
+  private stepNameToId: Record<string, string> = {}
+  private lastDetectedStep: string | null = null
+  private routeObserverCleanup: (() => void) | null = null
+
   // Bound listener references for clean teardown
   private readonly _onScroll = this._handleScroll.bind(this)
   private readonly _onClick = this._handleClick.bind(this)
@@ -84,10 +103,20 @@ export class CognArcSDK {
     this.config = config
     this.optedOut = config.sessionOptOut === true
 
-    // Sample rate: skip initialisation for this session if outside sample window
     const rate = config.sampleRate ?? 1.0
     if (rate < 1.0 && Math.random() > rate) {
       this.optedOut = true
+    }
+
+    if (config.onboardingSteps) {
+      this.steps = config.onboardingSteps
+      for (const s of this.steps) {
+        if (s.id) this.stepNameToId[s.name] = s.id
+      }
+    }
+
+    if (config.fetchStepsFromAPI && config.supabaseUrl && config.supabaseAnonKey) {
+      void this._fetchSteps()
     }
   }
 
@@ -104,8 +133,19 @@ export class CognArcSDK {
     const label = COGNITIVE_LABELS[eventType]
     if (label !== undefined) event.label = label
 
+    const step = this._getCurrentStep()
+    if (step !== null) event.stepName = step
+
     this.queue.push(event)
     this._scheduleFlush()
+  }
+
+  trackStepEntry(stepName: string): void {
+    this.track('step_entered', { step: stepName })
+  }
+
+  trackStepCompletion(stepName: string): void {
+    this.track('step_completed', { step: stepName })
   }
 
   optOut(): void {
@@ -147,6 +187,10 @@ export class CognArcSDK {
     document.removeEventListener('visibilitychange', this._onVisibilityChange)
     window.removeEventListener('beforeunload', this._onBeforeUnload)
     this.isInstrumented = false
+    if (this.routeObserverCleanup) {
+      this.routeObserverCleanup()
+      this.routeObserverCleanup = null
+    }
     this._flush(true)
   }
 
@@ -280,6 +324,7 @@ export class CognArcSDK {
     const batch = this.queue.splice(0, this.queue.length)
     const payload = JSON.stringify({ events: batch })
 
+    // Original endpoint transmission
     if (useBeacon && typeof navigator !== 'undefined' && navigator.sendBeacon) {
       const blob = new Blob([payload], { type: 'application/json' })
       const sent = navigator.sendBeacon(this.config.endpoint, blob)
@@ -287,6 +332,38 @@ export class CognArcSDK {
     } else {
       this._sendWithRetry(payload, 0)
     }
+
+    // Supabase behavioral_events transmission (when configured)
+    if (this.config.supabaseUrl && this.config.supabaseAnonKey && this.steps.length > 0) {
+      this._flushToSupabase(batch)
+    }
+  }
+
+  private _flushToSupabase(batch: BehavioralEvent[]): void {
+    if (!this.config?.supabaseUrl || !this.config?.supabaseAnonKey) return
+
+    const rows = batch.map((e) => ({
+      workspace_id: this.config!.workspaceId,
+      step_id: e.stepName ? (this.stepNameToId[e.stepName] ?? null) : null,
+      session_id: e.sid,
+      event_type: e.t,
+      cognitive_label: e.label ?? COGNITIVE_LABELS[e.t] ?? 'unknown',
+      metadata: e.meta ?? null,
+      occurred_at: new Date().toISOString(),
+    }))
+
+    fetch(`${this.config.supabaseUrl}/rest/v1/behavioral_events`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'apikey': this.config.supabaseAnonKey,
+        'Prefer': 'return=minimal',
+      },
+      body: JSON.stringify(rows),
+      keepalive: true,
+    }).catch(() => {
+      // Silently fail — SDK must not break the host site
+    })
   }
 
   private _sendWithRetry(payload: string, attempt: number): void {
@@ -316,6 +393,76 @@ export class CognArcSDK {
         setTimeout(() => { this._sendWithRetry(payload, attempt + 1) }, 1000 * Math.pow(2, attempt))
       }
     })
+  }
+
+  // ── Step matching + route observation ─────────────────────────────────────
+
+  private _getCurrentStep(): string | null {
+    if (this.steps.length === 0 || typeof window === 'undefined') return null
+    const path = window.location.pathname
+    const match = this.steps.find((s) => {
+      if (s.matchType === 'route' && s.matchValue) {
+        return path === s.matchValue || path.startsWith(s.matchValue + '/')
+      }
+      return false
+    })
+    return match?.name ?? null
+  }
+
+  startRouteObserver(): void {
+    if (typeof window === 'undefined' || this.routeObserverCleanup !== null) return
+
+    let lastPath = window.location.pathname
+    const check = () => {
+      const currentPath = window.location.pathname
+      if (currentPath !== lastPath) {
+        lastPath = currentPath
+        const step = this._getCurrentStep()
+        if (step !== null && step !== this.lastDetectedStep) {
+          this.lastDetectedStep = step
+          this.trackStepEntry(step)
+        }
+      }
+    }
+
+    const interval = setInterval(check, 300)
+    const onPopState = () => { check() }
+    window.addEventListener('popstate', onPopState)
+
+    this.routeObserverCleanup = () => {
+      clearInterval(interval)
+      window.removeEventListener('popstate', onPopState)
+    }
+
+    check()
+  }
+
+  private async _fetchSteps(): Promise<void> {
+    if (!this.config?.supabaseUrl || !this.config?.supabaseAnonKey) return
+    try {
+      const url = this.config.stepsAPIUrl
+        ?? `${this.config.supabaseUrl}/rest/v1/onboarding_steps?workspace_id=eq.${this.config.workspaceId}&order=step_order`
+      const res = await fetch(url, {
+        headers: {
+          'apikey': this.config.supabaseAnonKey,
+          'Accept': 'application/json',
+        },
+      })
+      if (!res.ok) return
+      const rows = await res.json() as Array<{ id: string; name: string; match_type: string; match_value: string | null }>
+      this.steps = rows.map((r) => ({
+        name: r.name,
+        matchType: r.match_type as 'route' | 'event' | 'manual',
+        matchValue: r.match_value ?? undefined,
+        id: r.id,
+      }))
+      this.stepNameToId = {}
+      for (const s of this.steps) {
+        if (s.id) this.stepNameToId[s.name] = s.id
+      }
+    } catch {
+      // Silently fail — SDK must not break the host site
+    }
   }
 
   // ── Helpers ──────────────────────────────────────────────────────────────────

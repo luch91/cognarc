@@ -4,7 +4,8 @@ import {
 } from '../api/mock.js'
 import { supabase } from '../api/supabaseClient.js'
 import type { AgentAction, AuditEntry, ActGatedItem, ConnectorStatus, CreativeAsset, HealthPoint, VideoAnalysisResult } from '../api/types.js'
-import type { LiveScoreResult } from '../api/scoringApi.js'
+import type { LiveScoreResult, ScoringMode, ScoringProgress } from '../api/scoringApi.js'
+import { scoreTextStream, scoreTextRemote } from '../api/scoringApi.js'
 
 // ── Manipulation feed entry ──────────────────────────────────────────────────
 export interface ManipulationFeedEntry {
@@ -58,6 +59,9 @@ interface AppState {
   liveScoreTrend: HealthPoint[]
   lastLiveScoreResult: LiveScoreResult | null
   lastLiveScoreText: string
+  liveScoreLoading: boolean
+  liveScoreProgress: ScoringProgress | null
+  liveScoreError: string | null
 }
 
 // ── Context value ────────────────────────────────────────────────────────────
@@ -75,6 +79,7 @@ interface AppContextValue extends AppState {
   setKillSwitchBanner: (visible: boolean) => void
   setHasConnectedEndpoint: (value: boolean) => void
   recordLiveScore: (result: LiveScoreResult, text?: string) => void
+  runLiveScore: (text: string, mode: ScoringMode) => void
 }
 
 // ── Initial connectors (merged from SettingsView + PMView) ───────────────────
@@ -101,6 +106,9 @@ const INITIAL_STATE: AppState = {
   liveScoreTrend: [],
   lastLiveScoreResult: null,
   lastLiveScoreText: '',
+  liveScoreLoading: false,
+  liveScoreProgress: null,
+  liveScoreError: null,
 }
 
 const AppContext = createContext<AppContextValue>({
@@ -118,6 +126,7 @@ const AppContext = createContext<AppContextValue>({
   setKillSwitchBanner: () => {},
   setHasConnectedEndpoint: () => {},
   recordLiveScore: () => {},
+  runLiveScore: () => {},
 })
 
 export function AppProvider({ children }: { children: ReactNode }) {
@@ -135,6 +144,9 @@ export function AppProvider({ children }: { children: ReactNode }) {
   const [liveScoreTrend, setLiveScoreTrend] = useState<HealthPoint[]>([])
   const [lastLiveScoreResult, setLastLiveScoreResult] = useState<LiveScoreResult | null>(null)
   const [lastLiveScoreText, setLastLiveScoreText] = useState('')
+  const [liveScoreLoading, setLiveScoreLoading] = useState(false)
+  const [liveScoreProgress, setLiveScoreProgress] = useState<ScoringProgress | null>(null)
+  const [liveScoreError, setLiveScoreError] = useState<string | null>(null)
 
   // C07: hydrate persisted video reports from Supabase on mount
   useEffect(() => {
@@ -252,6 +264,35 @@ export function AppProvider({ children }: { children: ReactNode }) {
     setHasConnectedEndpointState(value)
   }
 
+  function runLiveScore(text: string, mode: ScoringMode) {
+    if (liveScoreLoading) return
+    setLiveScoreLoading(true)
+    setLiveScoreError(null)
+    setLiveScoreProgress({ phase: `Connecting to scoring service (${mode} mode)…`, percent: 0 })
+    setLastLiveScoreText(text)
+    setLastLiveScoreResult(null)
+
+    void (async () => {
+      try {
+        const res = await scoreTextStream(text, (p) => setLiveScoreProgress(p), mode)
+        recordLiveScore(res, text)
+        setLiveScoreProgress(null)
+      } catch {
+        try {
+          setLiveScoreProgress({ phase: 'Streaming unavailable — falling back…', percent: 10 })
+          const res = await scoreTextRemote(text, mode)
+          recordLiveScore(res, text)
+          setLiveScoreProgress(null)
+        } catch (err) {
+          setLiveScoreError(err instanceof Error ? err.message : 'Unknown error')
+          setLiveScoreProgress(null)
+        }
+      } finally {
+        setLiveScoreLoading(false)
+      }
+    })()
+  }
+
   function recordLiveScore(result: LiveScoreResult, text?: string) {
     setLastLiveScoreResult(result)
     if (text !== undefined) setLastLiveScoreText(text)
@@ -294,9 +335,10 @@ export function AppProvider({ children }: { children: ReactNode }) {
       evaluationQueue, auditLog, actGatedQueue, agentFeed, manipulationFeed,
       connectors, thresholds, killSwitchActive, killSwitchBanner, hasConnectedEndpoint,
       latestLiveScore, liveScoreTrend, lastLiveScoreResult, lastLiveScoreText,
+      liveScoreLoading, liveScoreProgress, liveScoreError,
       addToEvaluationQueue, updateEvaluationItem, addAuditEntry, addActGatedItem,
       resolveActGatedItem, addAgentFeedEntry, addManipulationFeedEntry, updateConnector, updateThresholds,
-      setKillSwitch, setKillSwitchBanner, setHasConnectedEndpoint, recordLiveScore,
+      setKillSwitch, setKillSwitchBanner, setHasConnectedEndpoint, recordLiveScore, runLiveScore,
     }}>
       {children}
     </AppContext.Provider>

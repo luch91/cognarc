@@ -10,8 +10,8 @@ Implemented in P-011.
 | View | Audience | Key features |
 |---|---|---|
 | Workspace Overview | All roles | Health score, agent activity feed, kill switch |
-| Engineer | AI Engineers | Prompt regression monitor, CI/CD gate history, audit log |
-| PM | Product Managers | Alignment score, connector status, onboarding load curve |
+| Engineer | AI Engineers | **Live Cognitive Score** (persists across views), prompt regression monitor, CI/CD gate history, audit log |
+| PM | Product Managers | Alignment score, connector status, **Live Event Stream** (realtime Supabase subscription, cognitive label mapping, event detail drawer), onboarding load curve |
 | Growth | Growth & Marketing | Creative evaluation queue, **Copy Health Checker** (radar chart, manager/technical toggle, rewrite flow), variant ranker, brand trust drift |
 | Designer | Product Designers | A/B comparison tool, heatmap viewer, onboarding analyzer |
 | Safety / Red Team | Red Team / AI Safety | Manipulation feed, post-remediation monitor, audit export |
@@ -191,3 +191,26 @@ This eliminates the "Demo mode" fallback messages in:
 - Engineer View CI/CD gate rewrite suggestions
 - Growth View Copy Health Checker rewrites
 - Prompt Regression Monitor rewrite suggestions
+
+## Fix Pack 7+ — Live Event Stream & Scoring Fixes
+
+### Live Score Fixes
+
+- **Scoring survives navigation** — The scoring request now runs in `AppContext`, not inside the `LiveScorePanel` component. Navigating from Overview to Engineer (or any view) mid-score no longer kills the request.
+- **Live Score on Engineer view** — `LiveScorePanel` is now rendered on the Engineer view as well, showing the persisted result or letting users score directly from there.
+- **Score breakdown** — After a live score completes, a "Score Breakdown" section explains each metric in plain English (what the score means, whether it's good/bad, and what to do about it). The model's explanation is also shown.
+- **Rewrite suggestions** — A "Get Rewrite Suggestions" button appears after every score result. Clicking it calls the Cognitive Rewrite Service and shows cognitively-safe alternatives with predicted scores and deltas.
+
+### Live Event Stream (STREAM-01 → STREAM-05)
+
+- **STREAM-01** — `analytics_events` Supabase table with RLS, indexes, and realtime publication
+- **STREAM-02** — Webhook handlers for Segment, Amplitude, PostHog, Mixpanel, GA4 in `api-gateway`, with cognitive label mapping (6 rules), PII filtering, and write-back
+- **STREAM-03** — PM view "Live Connection Health" row + "Live Event Stream" panel with platform/label/search filters, pause toggle, and Supabase realtime subscription
+- **STREAM-04** — Event Detail Drawer (slide-in from right, reuses Evidence Drawer pattern): raw properties viewer, cognitive label explanation, write-back status with retry
+- **STREAM-05** — E2E tests in `e2e/live-event-stream.spec.ts`
+
+### E2E Tests
+
+```bash
+npx playwright test e2e/live-event-stream.spec.ts --headed
+```
