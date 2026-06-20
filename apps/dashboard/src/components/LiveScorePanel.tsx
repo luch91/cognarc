@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { scoreTextRemote, type LiveScoreResult } from '../api/scoringApi.js'
+import { scoreTextStream, scoreTextRemote, type LiveScoreResult, type ScoringProgress } from '../api/scoringApi.js'
 import { useAppContext } from '../context/AppContext.js'
 import { Card } from './Card.js'
 import { Spinner } from './Spinner.js'
@@ -41,19 +41,32 @@ export function LiveScorePanel() {
   const [state, setState] = useState<'idle' | 'loading' | 'done' | 'error'>(lastLiveScoreResult ? 'done' : 'idle')
   const [result, setResult] = useState<LiveScoreResult | null>(lastLiveScoreResult)
   const [error, setError] = useState<string | null>(null)
+  const [progress, setProgress] = useState<ScoringProgress | null>(null)
 
   async function handleScore() {
     if (!text.trim() || state === 'loading') return
     setState('loading')
     setError(null)
+    setProgress({ phase: 'Connecting to scoring service…', percent: 0 })
     try {
-      const res = await scoreTextRemote(text.trim())
+      const res = await scoreTextStream(text.trim(), (p) => setProgress(p))
       setResult(res)
       setState('done')
+      setProgress(null)
       recordLiveScore(res, text.trim())
-    } catch (err) {
-      setError(err instanceof Error ? err.message : 'Unknown error')
-      setState('error')
+    } catch {
+      try {
+        setProgress({ phase: 'Streaming unavailable — falling back…', percent: 10 })
+        const res = await scoreTextRemote(text.trim())
+        setResult(res)
+        setState('done')
+        setProgress(null)
+        recordLiveScore(res, text.trim())
+      } catch (err) {
+        setError(err instanceof Error ? err.message : 'Unknown error')
+        setState('error')
+        setProgress(null)
+      }
     }
   }
 
@@ -111,10 +124,28 @@ export function LiveScorePanel() {
           </button>
         </div>
 
-        {/* Loading state */}
-        {state === 'loading' && (
+        {/* Loading state with progress */}
+        {state === 'loading' && progress && (
+          <div className="space-y-2">
+            <div className="flex items-center gap-2">
+              <Spinner />
+              <p className="text-xs text-gray-600 font-medium">{progress.phase}</p>
+            </div>
+            <div className="h-1.5 bg-gray-100 rounded-full overflow-hidden">
+              <div
+                className="h-full bg-teal-400 rounded-full transition-all duration-1000 ease-out"
+                style={{ width: `${progress.percent}%` }}
+              />
+            </div>
+            <p className="text-[10px] text-gray-400">
+              {progress.elapsed_s != null ? `${progress.elapsed_s}s elapsed · ` : ''}
+              Cold start ~5 min · warm requests ~30s
+            </p>
+          </div>
+        )}
+        {state === 'loading' && !progress && (
           <p className="text-xs text-gray-400 animate-pulse">
-            Scoring via Cloud Run… cold start may take ~5 min, warm requests ~30s.
+            Connecting to scoring service…
           </p>
         )}
 

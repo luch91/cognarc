@@ -1,14 +1,24 @@
 import type { VercelRequest, VercelResponse } from '@vercel/node'
 
 const GROQ_API_KEY = process.env.GROQ_API_KEY ?? ''
+const OPENROUTER_API_KEY = process.env.OPENROUTER_API_KEY ?? ''
 
-const COPY_TYPE_MODELS: Record<string, string> = {
+const GROQ_MODELS: Record<string, string> = {
   campaign: 'qwen/qwen3-32b',
   landing_page: 'qwen/qwen3-32b',
   voiceover: 'llama-3.3-70b-versatile',
   prompt: 'qwen/qwen3-32b',
   microcopy: 'llama-3.1-8b-instant',
   long_form: 'qwen/qwen3-32b',
+}
+
+const OPENROUTER_COPY_TYPES = new Set(['long_form'])
+
+function resolveProvider(copyType: string): { url: string; key: string; model: string; provider: string } {
+  if (OPENROUTER_COPY_TYPES.has(copyType) && OPENROUTER_API_KEY) {
+    return { url: 'https://openrouter.ai/api/v1/chat/completions', key: OPENROUTER_API_KEY, model: 'qwen/qwen3-235b-a22b', provider: 'openrouter' }
+  }
+  return { url: 'https://api.groq.com/openai/v1/chat/completions', key: GROQ_API_KEY, model: GROQ_MODELS[copyType] ?? 'qwen/qwen3-32b', provider: 'groq' }
 }
 
 const COPY_TYPE_INSTRUCTIONS: Record<string, string> = {
@@ -162,7 +172,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
 
   if (req.method === 'OPTIONS') { res.status(204).end(); return }
   if (req.method !== 'POST') { res.status(405).json({ error: 'Method not allowed' }); return }
-  if (!GROQ_API_KEY) { res.status(500).json({ error: 'GROQ_API_KEY not configured' }); return }
+  if (!GROQ_API_KEY && !OPENROUTER_API_KEY) { res.status(500).json({ error: 'No LLM API key configured' }); return }
 
   const body = req.body as Record<string, unknown> | undefined
   if (!body || typeof body.original_text !== 'string') {
@@ -177,24 +187,32 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
   const brandVoiceNotes = body.brand_voice_notes as string | undefined
   const maxLength = body.max_length as number | undefined
 
-  const model = COPY_TYPE_MODELS[copyType] ?? 'qwen/qwen3-32b'
+  const { url: providerUrl, key: apiKey, model, provider } = resolveProvider(copyType)
   const prompt = buildPrompt(originalText, copyType, scores, taxonomy, brandVoiceNotes, maxLength)
+
+  if (!apiKey) { res.status(500).json({ error: `${provider} API key not configured` }); return }
 
   try {
     const start = Date.now()
-    const groqRes = await fetch('https://api.groq.com/openai/v1/chat/completions', {
+    const extraHeaders: Record<string, string> = provider === 'openrouter'
+      ? { 'HTTP-Referer': 'https://cognarc.ai', 'X-Title': 'CognArc' }
+      : {}
+    const extraBody = provider === 'openrouter' ? { thinking: { type: 'disabled' } } : {}
+    const groqRes = await fetch(providerUrl, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
-        'Authorization': `Bearer ${GROQ_API_KEY}`,
+        'Authorization': `Bearer ${apiKey}`,
+        ...extraHeaders,
       },
       body: JSON.stringify({
         model,
         messages: [{ role: 'user', content: prompt }],
         max_tokens: 2000,
         temperature: 0.7,
+        ...extraBody,
       }),
-      signal: AbortSignal.timeout(60_000),
+      signal: AbortSignal.timeout(90_000),
     })
 
     if (!groqRes.ok) {
@@ -238,7 +256,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
 
     res.status(200).json({
       alternatives: scored,
-      model_used: `groq/${model}`,
+      model_used: `${provider}/${model}`,
       original_scores: scores,
       processing_time_ms: Date.now() - start,
     })

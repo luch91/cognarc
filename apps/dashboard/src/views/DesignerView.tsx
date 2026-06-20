@@ -69,8 +69,12 @@ function HeatmapViewer({ src }: { src: string }) {
     const img = imgRef.current
     const canvas = canvasRef.current
     if (!img || !canvas) return
-    canvas.width = img.offsetWidth
-    canvas.height = img.offsetHeight
+    const w = img.offsetWidth || img.naturalWidth || 400
+    const h = img.offsetHeight || img.naturalHeight || 300
+    canvas.width = w
+    canvas.height = h
+    canvas.style.width = `${w}px`
+    canvas.style.height = `${h}px`
     drawHeatmap(canvas)
   }, [])
 
@@ -80,7 +84,7 @@ function HeatmapViewer({ src }: { src: string }) {
     const timer = setTimeout(() => {
       setProcessing(false)
       setReady(true)
-      syncCanvas()
+      requestAnimationFrame(() => syncCanvas())
     }, 1500)
     return () => clearTimeout(timer)
   }, [src, syncCanvas])
@@ -397,7 +401,7 @@ function AbComparison() {
     return (
       <div className="flex flex-col items-center justify-center py-12 gap-4">
         <Spinner />
-        <p className="text-sm font-medium text-gray-600">Running TRIBE cognitive comparison…</p>
+        <p className="text-sm font-medium text-gray-600">Running cognitive comparison…</p>
       </div>
     )
   }

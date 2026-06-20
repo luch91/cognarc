@@ -182,17 +182,17 @@ export function Hero() {
 
               {/* Brain GIF */}
               <div className="relative">
-                <div className="relative rounded-2xl overflow-hidden">
+                <div className="relative rounded-2xl overflow-hidden bg-[#0f1b2e] border border-white/[0.08]">
                   <img
                     src="/brain-hero.gif"
-                    alt="Animated neural network — glowing cognitive pathways"
-                    className="w-full h-auto"
+                    alt="Animated cognitive network — glowing pathways"
+                    className="w-full h-auto mix-blend-screen"
                     loading="eager"
                   />
                   {/* Teal color overlay to shift the blue toward CognArc's palette */}
-                  <div className="absolute inset-0 bg-gradient-to-br from-teal-500/10 via-transparent to-teal-400/5 mix-blend-overlay pointer-events-none" />
-                  {/* Vignette edges */}
-                  <div className="absolute inset-0 shadow-[inset_0_0_80px_30px_rgba(2,6,23,0.7)] pointer-events-none" />
+                  <div className="absolute inset-0 bg-gradient-to-br from-teal-500/15 via-transparent to-teal-400/8 mix-blend-overlay pointer-events-none" />
+                  {/* Soft vignette matching page background */}
+                  <div className="absolute inset-0 shadow-[inset_0_0_60px_20px_rgba(10,22,40,0.5)] pointer-events-none" />
                 </div>
 
                 {/* Cycling region label */}

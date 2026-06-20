@@ -265,9 +265,9 @@ function ActGatedCard({ item }: { item: ActGatedItem }) {
       {/* Decision package */}
       {expanded && (
         <div className="border-t border-gray-100 bg-gray-50 p-4 space-y-4">
-          {/* TRIBE scores */}
+          {/* Cognitive scores */}
           <div>
-            <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-2">TRIBE Evidence — Cognitive Scores</p>
+            <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-2">Cognitive Evidence — Scores</p>
             <div className="flex flex-wrap gap-6 justify-around bg-white rounded-lg p-3 border border-gray-100">
               <div className="flex flex-col items-center">
                 <ScoreGauge label="Cognitive Load" value={item.cognitive_scores.cognitive_load} invert size="sm" />

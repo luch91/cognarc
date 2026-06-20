@@ -48,3 +48,56 @@ export async function scoreTextRemote(text: string): Promise<LiveScoreResult> {
   }
   return res.json() as Promise<LiveScoreResult>
 }
+
+export interface ScoringProgress { phase: string; percent: number; elapsed_s?: number }
+
+export async function scoreTextStream(
+  text: string,
+  onProgress: (progress: ScoringProgress) => void,
+): Promise<LiveScoreResult> {
+  const baseUrl = SCORING_PROXY_URL || ''
+  const endpoint = baseUrl ? `${baseUrl}/api/score-stream` : '/api/score-stream'
+
+  const res = await fetch(endpoint, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ stimulus_type: 'text', content: text, workspace_id: 'trial' }),
+    signal: AbortSignal.timeout(310_000),
+  })
+
+  if (!res.ok) {
+    const body = await res.text()
+    throw new Error(`Scoring failed (${res.status}): ${body}`)
+  }
+
+  const reader = res.body?.getReader()
+  if (!reader) throw new Error('Response body is not readable')
+
+  const decoder = new TextDecoder()
+  let buffer = ''
+  let result: LiveScoreResult | null = null
+
+  while (true) {
+    const { done, value } = await reader.read()
+    if (done) break
+    buffer += decoder.decode(value, { stream: true })
+
+    const lines = buffer.split('\n')
+    buffer = lines.pop() ?? ''
+
+    let eventType = ''
+    for (const line of lines) {
+      if (line.startsWith('event: ')) {
+        eventType = line.slice(7).trim()
+      } else if (line.startsWith('data: ')) {
+        const data = JSON.parse(line.slice(6))
+        if (eventType === 'progress') onProgress(data as ScoringProgress)
+        else if (eventType === 'result') result = data as LiveScoreResult
+        else if (eventType === 'error') throw new Error((data as { error: string }).error)
+      }
+    }
+  }
+
+  if (!result) throw new Error('No result received from scoring stream')
+  return result
+}

@@ -172,7 +172,7 @@ export const mockActGatedItems: ActGatedItem[] = [
     description: 'Campaign copy v2 flagged for manipulation risk 78/100',
     proposed_action: 'Block deployment of campaign copy v2 to production',
     alternatives: ['Deploy with soft-block warning', 'Request human review only', 'Auto-remediate urgency language'],
-    evidence_summary: 'TRIBE analysis detected false_urgency (score 84) and authority_mimicry (score 71). Top phrases: "Act now — experts unanimously agree", "Limited time only".',
+    evidence_summary: 'Cognitive analysis detected false_urgency (score 84) and authority_mimicry (score 71). Top phrases: "Act now — experts unanimously agree", "Limited time only".',
     cognitive_scores: { cognitive_load: 68, comprehension: 54, trust: 41, manipulation_risk: 78 },
     status: 'pending',
   },
