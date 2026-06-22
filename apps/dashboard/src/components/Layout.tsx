@@ -22,8 +22,10 @@ export function Layout() {
       <aside className="w-56 flex-shrink-0 bg-white border-r border-gray-200 flex flex-col">
         {/* Logo */}
         <div className="px-4 py-4 border-b border-gray-100">
-          <span className="text-lg font-bold text-brand-700 tracking-tight">CognArc</span>
-          <span className="ml-1 text-xs text-gray-400 font-medium">v0.1</span>
+          <div className="flex items-center gap-1">
+            <span className="text-lg font-bold text-gray-900 tracking-tight">CognArc</span>
+            <span className="w-2 h-2 rounded-full bg-teal-400 mt-0.5 ml-0.5 shrink-0" />
+          </div>
         </div>
 
         {/* Nav */}
