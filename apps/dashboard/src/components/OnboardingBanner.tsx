@@ -18,12 +18,7 @@ export function OnboardingBanner({ onConnected }: Props) {
     setState('testing')
     setErrorMsg('')
     try {
-      const res = await fetch('/api/score', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ stimulus_type: 'text', content: 'connection test', workspace_id: 'onboarding' }),
-        signal: AbortSignal.timeout(15_000),
-      })
+      const res = await fetch('/api/health', { signal: AbortSignal.timeout(10_000) })
       if (!res.ok) throw new Error(`HTTP ${res.status}`)
       setState('success')
       setTimeout(() => onConnected(), 1500)
