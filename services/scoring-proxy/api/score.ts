@@ -3,6 +3,7 @@ import type { VercelRequest, VercelResponse } from '@vercel/node'
 const TRIBE_ENDPOINT = process.env.GCP_TRIBE_ENDPOINT ?? ''
 const RATE_LIMIT_MAX = parseInt(process.env.RATE_LIMIT_MAX ?? '10', 10)
 const RATE_LIMIT_WINDOW_MS = parseInt(process.env.RATE_LIMIT_WINDOW_MS ?? '86400000', 10) // 24h
+const PROXY_SECRET = process.env.COGNARC_PROXY_SECRET ?? ''
 
 const rateLimitStore = new Map<string, { count: number; reset: number }>()
 
@@ -47,6 +48,11 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
 
   if (req.method !== 'POST') {
     res.status(405).json({ error: 'Method not allowed' })
+    return
+  }
+
+  if (PROXY_SECRET && req.headers['x-cognarc-key'] !== PROXY_SECRET) {
+    res.status(401).json({ error: 'Unauthorized' })
     return
   }
 

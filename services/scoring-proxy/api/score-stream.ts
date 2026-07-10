@@ -1,6 +1,7 @@
 import type { VercelRequest, VercelResponse } from '@vercel/node'
 
 const TRIBE_ENDPOINT = process.env.GCP_TRIBE_ENDPOINT ?? ''
+const PROXY_SECRET = process.env.COGNARC_PROXY_SECRET ?? ''
 
 async function getAuthHeaders(): Promise<Record<string, string>> {
   const keyJson = process.env.GCP_SERVICE_ACCOUNT_KEY
@@ -32,6 +33,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
 
   if (req.method === 'OPTIONS') { res.status(204).end(); return }
   if (req.method !== 'POST') { res.status(405).json({ error: 'Method not allowed' }); return }
+  if (PROXY_SECRET && req.headers['x-cognarc-key'] !== PROXY_SECRET) { res.status(401).json({ error: 'Unauthorized' }); return }
   if (!TRIBE_ENDPOINT) { res.status(500).json({ error: 'TRIBE endpoint not configured' }); return }
 
   const body = req.body as Record<string, unknown> | undefined

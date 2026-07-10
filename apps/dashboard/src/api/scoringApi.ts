@@ -26,19 +26,10 @@ export async function scoreText(text: string, workspaceId = 'ws-dashboard'): Pro
   return res.json() as Promise<LiveScoreResult>
 }
 
-const SCORING_PROXY_URL = (import.meta.env.VITE_SCORING_PROXY_URL as string | undefined) ?? ''
-
-export function getScoringProxyUrl(): string {
-  return SCORING_PROXY_URL
-}
-
 export type ScoringMode = 'fast' | 'accurate'
 
 export async function scoreTextRemote(text: string, mode: ScoringMode = 'accurate'): Promise<LiveScoreResult> {
-  const baseUrl = SCORING_PROXY_URL || ''
-  const endpoint = baseUrl ? `${baseUrl}/api/score` : '/api/score'
-
-  const res = await fetch(endpoint, {
+  const res = await fetch('/api/score', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ stimulus_type: 'text', content: text, workspace_id: 'trial', mode }),
@@ -58,10 +49,7 @@ export async function scoreTextStream(
   onProgress: (progress: ScoringProgress) => void,
   mode: ScoringMode = 'accurate',
 ): Promise<LiveScoreResult> {
-  const baseUrl = SCORING_PROXY_URL || ''
-  const endpoint = baseUrl ? `${baseUrl}/api/score-stream` : '/api/score-stream'
-
-  const res = await fetch(endpoint, {
+  const res = await fetch('/api/score-stream', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ stimulus_type: 'text', content: text, workspace_id: 'trial', mode }),

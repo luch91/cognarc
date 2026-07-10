@@ -12,7 +12,6 @@ const TRIAL_PROMPTS = [
 ]
 
 const SHOW_TRIAL = import.meta.env.VITE_SHOW_TRIAL_SCORING === 'true'
-  || !!import.meta.env.VITE_SCORING_PROXY_URL
 
 export function TryLiveScoring() {
   const { recordLiveScore } = useAppContext()

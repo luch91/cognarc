@@ -3,6 +3,10 @@
     "api/score.ts": {
       "runtime": "@vercel/node@3",
       "maxDuration": 120
+    },
+    "api/score-stream.ts": {
+      "runtime": "@vercel/node@3",
+      "maxDuration": 310
     }
   },
   "rewrites": [
@@ -12,9 +16,9 @@
     {
       "source": "/api/(.*)",
       "headers": [
-        { "key": "Access-Control-Allow-Origin", "value": "*" },
+        { "key": "Access-Control-Allow-Origin", "value": "https://cognarc-dashboard.vercel.app" },
         { "key": "Access-Control-Allow-Methods", "value": "POST, OPTIONS" },
-        { "key": "Access-Control-Allow-Headers", "value": "Content-Type" }
+        { "key": "Access-Control-Allow-Headers", "value": "Content-Type, X-CognArc-Key" }
       ]
     }
   ]
