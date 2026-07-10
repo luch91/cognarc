@@ -1,6 +1,3 @@
-const EXTRACTOR_URL = (import.meta.env.VITE_URL_EXTRACTOR_URL as string | undefined)
-  ?? 'http://localhost:3008'
-
 export interface ContentSection {
   sectionType: 'hero' | 'headline' | 'value_prop' | 'body' | 'cta' |
                'nav' | 'footer' | 'meta' | 'feature'
@@ -24,17 +21,13 @@ export interface ExtractResponse {
 
 export async function extractUrl(
   url: string,
-  workspaceId: string,
-  maxSections: number = 10
+  _workspaceId: string,
+  _maxSections: number = 10
 ): Promise<ExtractResponse> {
-  const res = await fetch(`${EXTRACTOR_URL}/extract`, {
+  const res = await fetch('/api/extract-url', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({
-      url,
-      workspace_id: workspaceId,
-      max_sections: maxSections,
-    }),
+    body: JSON.stringify({ url }),
   })
 
   if (!res.ok) {
