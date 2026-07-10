@@ -6,7 +6,7 @@
     },
     "api/score-stream.ts": {
       "runtime": "@vercel/node@3",
-      "maxDuration": 310
+      "maxDuration": 300
     }
   },
   "rewrites": [
