@@ -1,42 +1,34 @@
 import { useState } from 'react'
-import { getScoringProxyUrl } from '../api/scoringApi.js'
 
 interface Props {
   onConnected: () => void
 }
 
 const STEPS = [
-  'Paste your endpoint URL',
   'Verify connection',
   'Receive your first cognitive score',
 ]
 
-const PROXY_URL = getScoringProxyUrl()
-const IS_DEPLOYED = typeof window !== 'undefined' && !window.location.hostname.includes('localhost')
-
 export function OnboardingBanner({ onConnected }: Props) {
-  const defaultUrl = PROXY_URL || (IS_DEPLOYED ? window.location.origin : 'http://localhost:3001')
-  const [url, setUrl] = useState(defaultUrl)
   const [state, setState] = useState<'idle' | 'testing' | 'success' | 'error'>('idle')
   const [errorMsg, setErrorMsg] = useState('')
-  const activeStep = state === 'success' ? 2 : state === 'testing' ? 1 : url ? 1 : 0
+  const activeStep = state === 'success' ? 1 : state === 'testing' ? 0 : 0
 
   async function handleConnect() {
-    if (!url) return
     setState('testing')
     setErrorMsg('')
     try {
-      const isLocalhost = url.includes('localhost')
-      const healthUrl = isLocalhost ? '/api/health' : `${url === window.location.origin ? '' : url}/api/score`
-      const res = await fetch(healthUrl, { signal: AbortSignal.timeout(10_000) })
+      const res = await fetch('/api/score', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ stimulus_type: 'text', content: 'connection test', workspace_id: 'onboarding' }),
+        signal: AbortSignal.timeout(15_000),
+      })
       if (!res.ok) throw new Error(`HTTP ${res.status}`)
       setState('success')
       setTimeout(() => onConnected(), 1500)
     } catch {
-      const hint = url.includes('localhost')
-        ? 'Make sure cognitive-scoring is running on port 3001.'
-        : 'Could not reach the scoring endpoint. Check the URL and try again.'
-      setErrorMsg(`Could not reach scoring service. ${hint}`)
+      setErrorMsg('Could not reach the scoring service. Try again in a moment.')
       setState('error')
     }
   }
@@ -69,35 +61,19 @@ export function OnboardingBanner({ onConnected }: Props) {
         ))}
       </div>
 
-      {/* Form */}
       {state === 'success' ? (
         <p className="text-sm font-semibold text-teal-700 animate-pulse">
           Connected! Receiving first cognitive score…
         </p>
       ) : (
         <div className="space-y-2">
-          <div className="flex flex-wrap items-end gap-3">
-            <div className="flex-1 min-w-48">
-              <label className="block text-xs text-teal-700 font-medium mb-1">
-                Scoring Service URL{PROXY_URL ? ' (Cloud Run proxy detected)' : ''}
-              </label>
-              <input
-                type="text"
-                value={url}
-                onChange={(e) => setUrl(e.target.value)}
-                placeholder="http://localhost:3001"
-                disabled={state === 'testing'}
-                className="w-full text-sm border border-teal-200 bg-white rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-teal-400 disabled:opacity-60"
-              />
-            </div>
-            <button
-              onClick={handleConnect}
-              disabled={!url || state === 'testing'}
-              className="text-sm font-semibold bg-teal-500 hover:bg-teal-600 text-white px-4 py-2 rounded-lg transition-colors disabled:opacity-50 whitespace-nowrap"
-            >
-              {state === 'testing' ? 'Testing connection…' : 'Connect & Start Monitoring'}
-            </button>
-          </div>
+          <button
+            onClick={() => { void handleConnect() }}
+            disabled={state === 'testing'}
+            className="text-sm font-semibold bg-teal-500 hover:bg-teal-600 text-white px-5 py-2 rounded-lg transition-colors disabled:opacity-50 whitespace-nowrap"
+          >
+            {state === 'testing' ? 'Testing connection…' : 'Connect & Start Monitoring'}
+          </button>
           {state === 'error' && (
             <p className="text-xs text-red-600 bg-red-50 px-3 py-2 rounded-lg">{errorMsg}</p>
           )}
