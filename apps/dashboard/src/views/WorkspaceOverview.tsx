@@ -86,7 +86,7 @@ export function WorkspaceOverview() {
 
       {/* 30-day trend chart */}
       <Card
-        title="Cognitive Health Trend"
+        title="Session Cognitive Evaluation Trend"
         action={
           liveScoreTrend.length > 0 ? (
             <span className="text-xs bg-teal-50 text-teal-600 font-semibold px-2 py-0.5 rounded-full">
@@ -165,29 +165,12 @@ export function WorkspaceOverview() {
                 ))}
               </ul>
 
-              {/* Buyer surface activity indicators */}
-              <div className="pt-2 border-t border-gray-100">
-                <p className="text-[10px] text-gray-400 uppercase tracking-wide mb-1.5">Active surfaces — last 30 days</p>
-                <div className="flex flex-wrap gap-1.5">
-                  {BUYER_SURFACES.map((s) => (
-                    <span
-                      key={s.label}
-                      className={`px-2.5 py-0.5 rounded-full text-xs font-semibold ${
-                        s.active ? 'bg-teal-100 text-teal-700' : 'bg-gray-100 text-gray-400'
-                      }`}
-                    >
-                      {s.label}
-                    </span>
-                  ))}
-                </div>
-              </div>
-
               {/* Add Surface button — always visible below list */}
               <button
                 onClick={() => navigate('/settings')}
                 className="mt-1 w-full text-xs border border-dashed border-gray-300 text-gray-500 hover:border-brand-400 hover:text-brand-600 rounded-lg py-2 transition-colors focus:outline-none focus:ring-2 focus:ring-brand-500"
               >
-                + Add Surface
+                View integration status
               </button>
             </div>
           )}

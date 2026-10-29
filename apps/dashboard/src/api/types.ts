@@ -1,3 +1,4 @@
+import type { CognitiveScoreResponse } from '@cognarc/types'
 export type Zone = 'OBSERVE' | 'RECOMMEND' | 'ACT_AUTO' | 'ACT_GATED'
 export type ActionStatus = 'pending' | 'approved' | 'rejected' | 'executed'
 export type ConnectorName = 'segment' | 'amplitude' | 'mixpanel' | 'posthog' | 'ga4'
@@ -130,12 +131,14 @@ export interface CreativeAsset {
   name: string
   type: 'image' | 'copy' | 'video'
   uploaded_at: string
-  status: 'queued' | 'processing' | 'complete'
+  status: 'queued' | 'processing' | 'complete' | 'failed' | 'unsupported'
   cognitive_load?: number
   trust?: number
   risk: CognitivRisk
   videoAnalysis?: VideoAnalysisResult
   videoAnalysisDemoMode?: boolean
+  scoreResult?: CognitiveScoreResponse
+  error?: string
 }
 
 export interface TrustDriftPoint {

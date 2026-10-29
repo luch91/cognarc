@@ -292,7 +292,7 @@ export function SafetyView() {
 
       {/* Audit Trail */}
       <Card
-        title={`Full Audit Trail (${auditLog.length} entries)`}
+        title={`Session Activity Log (${auditLog.length} entries)`}
         action={
           <button
             onClick={() => downloadJson(auditLog, 'cognarc-audit-log.json')}
@@ -303,6 +303,7 @@ export function SafetyView() {
           </button>
         }
       >
+        <p className="text-xs text-amber-800 mb-3">Session-only activity. This is not a tamper-resistant or server-persisted audit trail.</p>
         <div className="grid grid-cols-[1fr_80px_120px_80px] text-xs text-gray-400 uppercase tracking-wide border-b border-gray-100 pb-1 mb-1 gap-2">
           <span>Action</span>
           <span>Zone</span>
