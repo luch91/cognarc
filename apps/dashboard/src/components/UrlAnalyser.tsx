@@ -380,6 +380,11 @@ export function UrlAnalyser() {
 
       {result && (
         <div className="space-y-4">
+          <p role="status" className="text-xs text-amber-900 bg-amber-50 rounded-lg border border-amber-200 p-3">
+            {result.scoring_provenance.engine === 'mathematical' ? 'CME' : 'TRIBE'} heuristic indices.
+            {result.scoring_provenance.fallback_used ? ' TRIBE fallback occurred for at least one page section.' : ''}
+            Uncalibrated: review only. No conclusion about actual user comprehension or safety.
+          </p>
           {result.warning && (
             <div className="text-sm text-amber-700 bg-amber-50 border border-amber-100 rounded-lg px-4 py-3">
               ⚠ {result.warning}
@@ -416,9 +421,9 @@ export function UrlAnalyser() {
               <p className={`text-sm font-bold mb-2 ${
                 overallHealth === 'CLEAR' ? 'text-emerald-700' : 'text-amber-700'
               }`}>
-                {overallHealth === 'FLAGGED' && '⚠ This page has content that needs fixing before it converts.'}
-                {overallHealth === 'NEEDS_REVIEW' && '⚠ This page has some issues worth addressing.'}
-                {overallHealth === 'CLEAR' && '✓ This page\'s copy is cognitively safe.'}
+                {overallHealth === 'FLAGGED' && 'Higher linguistic risk indicators. Review before publication.'}
+                {overallHealth === 'NEEDS_REVIEW' && 'Some language indicators warrant review.'}
+                {overallHealth === 'CLEAR' && 'Few heuristic markers found; user outcomes are unverified.'}
               </p>
               <CognitiveScoreCard
                 scores={{

@@ -1,118 +1,49 @@
 import type { VercelRequest, VercelResponse } from '@vercel/node'
 
-const TRIBE_ENDPOINT = process.env.GCP_TRIBE_ENDPOINT ?? ''
-const RATE_LIMIT_MAX = parseInt(process.env.RATE_LIMIT_MAX ?? '10', 10)
-const RATE_LIMIT_WINDOW_MS = parseInt(process.env.RATE_LIMIT_WINDOW_MS ?? '86400000', 10) // 24h
-const PROXY_SECRET = process.env.COGNARC_PROXY_SECRET ?? ''
+// Thin deployment adapter. This file deliberately contains no TRIBE or CME logic.
+// Cloudflare Pages Functions can replace it without changing the browser contract.
+const SERVICE_URL = process.env.COGNARC_SCORING_URL ?? ''
+const SERVICE_SECRET = process.env.COGNARC_SCORING_SERVICE_SECRET ?? ''
+const TIMEOUT_MS = 100_000
 
-const rateLimitStore = new Map<string, { count: number; reset: number }>()
-
-function getRateLimit(ip: string): { allowed: boolean; remaining: number } {
-  const now = Date.now()
-  const entry = rateLimitStore.get(ip)
-
-  if (!entry || now > entry.reset) {
-    rateLimitStore.set(ip, { count: 1, reset: now + RATE_LIMIT_WINDOW_MS })
-    return { allowed: true, remaining: RATE_LIMIT_MAX - 1 }
+function validScore(value: unknown): boolean {
+  if (!value || typeof value !== 'object') return false
+  const v = value as Record<string, unknown>
+  for (const key of ['cognitive_load', 'comprehension_confidence', 'emotional_valence', 'trust_coherence', 'manipulation_risk']) {
+    if (typeof v[key] !== 'number' || !Number.isFinite(v[key]) || (v[key] as number) < 0 || (v[key] as number) > 100) return false
   }
-
-  if (entry.count >= RATE_LIMIT_MAX) {
-    return { allowed: false, remaining: 0 }
-  }
-
-  entry.count++
-  return { allowed: true, remaining: RATE_LIMIT_MAX - entry.count }
+  if (!['LOW', 'MEDIUM', 'HIGH'].includes(String(v.cognitive_risk)) || !Array.isArray(v.top_brain_regions) || typeof v.model_version !== 'string' || v.model_version.toLowerCase().includes('stub')) return false
+  if (!v.scoring_provenance || typeof v.scoring_provenance !== 'object') return false
+  const p = v.scoring_provenance as Record<string, unknown>
+  return ['mathematical', 'tribe', 'mock'].includes(String(p.engine)) &&
+    ['uncalibrated', 'validated'].includes(String(p.calibration_status)) &&
+    typeof p.policy_eligible === 'boolean' && typeof p.neural_evidence === 'boolean'
 }
 
-async function getAuthHeaders(): Promise<Record<string, string>> {
-  const keyJson = process.env.GCP_SERVICE_ACCOUNT_KEY
-  if (!keyJson) return {}
-
-  const { GoogleAuth } = await import('google-auth-library')
-  const credentials = JSON.parse(keyJson) as Record<string, unknown>
-  const auth = new GoogleAuth({ credentials, scopes: [] })
-  const client = await auth.getIdTokenClient(TRIBE_ENDPOINT)
-  const headers = await client.getRequestHeaders()
-  return headers as Record<string, string>
-}
-
-export default async function handler(req: VercelRequest, res: VercelResponse) {
-  res.setHeader('Access-Control-Allow-Origin', '*')
-  res.setHeader('Access-Control-Allow-Methods', 'POST, OPTIONS')
-  res.setHeader('Access-Control-Allow-Headers', 'Content-Type')
-
-  if (req.method === 'OPTIONS') {
-    res.status(204).end()
-    return
-  }
-
-  if (req.method !== 'POST') {
-    res.status(405).json({ error: 'Method not allowed' })
-    return
-  }
-
-  if (PROXY_SECRET && req.headers['x-cognarc-key'] !== PROXY_SECRET) {
-    res.status(401).json({ error: 'Unauthorized' })
-    return
-  }
-
-  if (!TRIBE_ENDPOINT) {
-    res.status(500).json({ error: 'TRIBE endpoint not configured' })
-    return
-  }
-
-  const ip = (req.headers['x-forwarded-for'] as string)?.split(',')[0]?.trim() ?? 'unknown'
-  const { allowed, remaining } = getRateLimit(ip)
-
-  res.setHeader('X-RateLimit-Limit', RATE_LIMIT_MAX.toString())
-  res.setHeader('X-RateLimit-Remaining', remaining.toString())
-
-  if (!allowed) {
-    res.status(429).json({
-      error: 'Rate limit exceeded',
-      message: `Trial accounts are limited to ${RATE_LIMIT_MAX} scores per day. Contact us for higher limits.`,
-    })
-    return
-  }
-
+export default async function handler(req: VercelRequest, res: VercelResponse): Promise<void> {
+  res.setHeader('Cache-Control', 'no-store')
+  if (req.method !== 'POST') { res.status(405).json({ error: 'Method not allowed' }); return }
+  if (!process.env.COGNARC_PROXY_SECRET || req.headers['x-cognarc-key'] !== process.env.COGNARC_PROXY_SECRET) { res.status(401).json({ error: 'Unauthorized' }); return }
+  if (!SERVICE_URL || !SERVICE_SECRET) { res.status(503).json({ error: 'Canonical scoring service is not configured' }); return }
   const body = req.body as Record<string, unknown> | undefined
-  if (!body || typeof body.content !== 'string' || !body.content.trim()) {
-    res.status(400).json({ error: 'Missing required field: content' })
-    return
+  if (!body || typeof body.content !== 'string' || !body.content.trim() ||
+      !['text','image','audio','video'].includes(String(body.stimulus_type)) ||
+      typeof body.workspace_id !== 'string' || !body.workspace_id.trim()) {
+    res.status(400).json({ error: 'Invalid scoring request' }); return
   }
-
   try {
-    const authHeaders = await getAuthHeaders()
-
-    const mode = (body.mode as string) ?? 'accurate'
-    const tribeRes = await fetch(`${TRIBE_ENDPOINT}/predict`, {
+    const upstream = await fetch(SERVICE_URL.replace(/\/$/, '') + '/score', {
       method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        ...authHeaders,
-      },
-      body: JSON.stringify({
-        stimulus_type: body.stimulus_type ?? 'text',
-        content: body.content,
-        modality: body.stimulus_type ?? 'text',
-        mode,
-      }),
-      signal: AbortSignal.timeout(mode === 'fast' ? 60_000 : 120_000),
+      headers: { 'Content-Type': 'application/json', 'X-CognArc-Key': SERVICE_SECRET },
+      body: JSON.stringify(body),
+      signal: AbortSignal.timeout(TIMEOUT_MS),
     })
-
-    if (!tribeRes.ok) {
-      const errBody = await tribeRes.text()
-      res.status(tribeRes.status).json({
-        error: `TRIBE inference error (${tribeRes.status})`,
-        details: errBody,
-      })
-      return
-    }
-
-    const prediction = await tribeRes.json()
-    res.status(200).json(prediction)
-  } catch (err) {
-    const message = err instanceof Error ? err.message : 'Internal server error'
-    res.status(500).json({ error: message })
+    if (!upstream.ok) { res.status(upstream.status).json({ error: 'Canonical scoring service returned ' + upstream.status }); return }
+    const data: unknown = await upstream.json()
+    if (!validScore(data)) { res.status(502).json({ error: 'Invalid canonical scoring response' }); return }
+    res.status(200).json(data)
+  } catch (error) {
+    const timedOut = error instanceof Error && /abort|timeout/i.test(error.message)
+    res.status(timedOut ? 504 : 502).json({ error: timedOut ? 'Canonical scoring request timed out' : 'Canonical scoring service unavailable' })
   }
 }

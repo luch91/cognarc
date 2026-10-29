@@ -4,14 +4,23 @@ on:
     paths:
       - 'services/cognitive-scoring/**'
       - 'services/guardrail-engine/**'
+      - 'apps/dashboard/**'
+      - 'services/scoring-proxy/**'
+      - 'api/**'
+      - 'docs/gate1-cme-cloudflare-transport.md'
       - 'packages/cognarc-types/**'
       - '.github/workflows/cme-scoring.yml'
   push:
     branches:
       - 'feat/cme-mathematical-fallback'
+      - 'feat/gate1-admin-cme-cloudflare-ready'
     paths:
       - 'services/cognitive-scoring/**'
       - 'services/guardrail-engine/**'
+      - 'apps/dashboard/**'
+      - 'services/scoring-proxy/**'
+      - 'api/**'
+      - 'docs/gate1-cme-cloudflare-transport.md'
       - 'packages/cognarc-types/**'
       - '.github/workflows/cme-scoring.yml'
 jobs:
@@ -30,5 +39,8 @@ jobs:
       - run: pnpm --filter @cognarc/types build
       - run: pnpm --filter @cognarc/cognitive-scoring typecheck
       - run: pnpm --filter @cognarc/guardrail-engine typecheck
+      - run: pnpm --filter @cognarc/dashboard typecheck
+      - run: pnpm --filter @cognarc/scoring-proxy exec tsc --noEmit
+      - run: pnpm --filter @cognarc/dashboard exec jest --runInBand
       - run: pnpm --filter @cognarc/cognitive-scoring exec jest --runInBand
       - run: pnpm --filter @cognarc/guardrail-engine exec jest --runInBand

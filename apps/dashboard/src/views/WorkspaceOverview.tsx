@@ -36,13 +36,15 @@ const STATUS_DOT: Record<string, string> = {
 export function WorkspaceOverview() {
   const { data: trend, isLoading: trendLoading } = useQuery({ queryKey: ['health-trend'], queryFn: fetchHealthTrend })
   const { data: surfaces, isLoading: surfLoading } = useQuery({ queryKey: ['surfaces'], queryFn: fetchSurfaces })
-  const { agentFeed, hasConnectedEndpoint, setHasConnectedEndpoint, latestLiveScore, liveScoreTrend } = useAppContext()
+  const { agentFeed, hasConnectedEndpoint, setHasConnectedEndpoint, latestLiveScore, liveScoreTrend, lastLiveScoreResult } = useAppContext()
   const navigate = useNavigate()
 
   // Use live score when available, fall back to mock trend's last point
   const latest = latestLiveScore ?? trend?.[trend.length - 1]
-  // Merge mock trend with live score history for the chart
-  const chartData = [...(trend ?? []), ...liveScoreTrend]
+  // Never mix mock fixtures and real engine evaluations in a single series.
+  const activeEngine = lastLiveScoreResult?.scoring_provenance.engine
+  const currentEngineSeries = activeEngine ? liveScoreTrend.filter(point => point.engine === activeEngine) : liveScoreTrend
+  const chartData = currentEngineSeries.length > 0 ? currentEngineSeries : (trend ?? [])
   const pendingGated = agentFeed.filter((a) => a.zone === 'ACT_GATED' && a.status === 'pending')
 
   return (
@@ -60,7 +62,7 @@ export function WorkspaceOverview() {
           latestLiveScore ? (
             <span className="flex items-center gap-1.5 text-xs text-teal-600 font-semibold">
               <span className="w-2 h-2 rounded-full bg-teal-400 animate-pulse" />
-              LIVE
+              {lastLiveScoreResult?.scoring_provenance.engine === 'mathematical' ? 'CME indices · uncalibrated' : 'TRIBE · experimental'}
             </span>
           ) : (
             <span className="text-xs text-gray-400">mock data — score something to update</span>
@@ -88,7 +90,7 @@ export function WorkspaceOverview() {
         action={
           liveScoreTrend.length > 0 ? (
             <span className="text-xs bg-teal-50 text-teal-600 font-semibold px-2 py-0.5 rounded-full">
-              {liveScoreTrend.length} live score{liveScoreTrend.length > 1 ? 's' : ''} recorded
+              {liveScoreTrend.length} {lastLiveScoreResult?.scoring_provenance.engine === 'mathematical' ? 'CME' : 'TRIBE'} score{liveScoreTrend.length > 1 ? 's' : ''} · per-session
             </span>
           ) : undefined
         }
@@ -96,7 +98,7 @@ export function WorkspaceOverview() {
         {trendLoading || !trend ? (
           <div className="flex justify-center py-4"><Spinner /></div>
         ) : (
-          <ResponsiveContainer width="100%" height={220}>
+          <><p className="text-xs text-gray-500 mb-2">{liveScoreTrend.length ? 'Session scores. Engine provenance is shown in the evaluator; compare only identical engines.' : 'Demo trend data, not live measurements.'}</p><ResponsiveContainer width="100%" height={220}>
             <LineChart data={chartData} margin={{ top: 4, right: 8, bottom: 0, left: -20 }}>
               <XAxis dataKey="date" tick={{ fontSize: 11 }} interval={6} />
               <YAxis domain={[0, 100]} tick={{ fontSize: 11 }} />
@@ -107,7 +109,7 @@ export function WorkspaceOverview() {
               <Line type="monotone" dataKey="trust" name="Trust" stroke="#4f6ef7" dot={false} strokeWidth={2} />
               <Line type="monotone" dataKey="manipulation_risk" name="Manipulation" stroke="#ef4444" dot={false} strokeWidth={1.5} strokeDasharray="4 2" />
             </LineChart>
-          </ResponsiveContainer>
+          </ResponsiveContainer></>
         )}
       </Card>
 

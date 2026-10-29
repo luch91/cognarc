@@ -1,5 +1,4 @@
 import { useState } from 'react'
-import type { ScoringMode } from '../api/scoringApi.js'
 import { rewrite } from '../api/rewriteApi.js'
 import type { RewriteAlternative } from '../api/rewriteApi.js'
 import { useAppContext } from '../context/AppContext.js'
@@ -38,30 +37,30 @@ const EXAMPLE_PROMPTS = [
 ]
 
 function explainCognitiveLoad(v: number): string {
-  return v > 75 ? 'Very high cognitive load — the text places excessive demands on working memory. Users are likely to disengage or make errors.'
-    : v > 55 ? 'Elevated cognitive load — the text requires sustained attention. Simplifying structure or reducing information density would help.'
-    : v > 35 ? 'Moderate cognitive load — within a comfortable processing range for most users.'
-    : 'Low cognitive load — the text is easy to process and unlikely to overwhelm.'
+  return v > 75 ? 'Elevated complexity index. Review sentence length, reading difficulty and structure.'
+    : v > 55 ? 'Elevated complexity index. Simplifying structure may improve readability.'
+    : v > 35 ? 'Moderate complexity index; actual mental workload has not been measured.'
+    : 'Low complexity index; actual mental workload has not been measured.'
 }
 
 function explainComprehension(v: number): string {
-  return v > 75 ? 'High comprehension confidence — the text is clear and well-structured. Users should understand it easily.'
-    : v > 55 ? 'Moderate comprehension — most users will follow the message, but some phrasing could be clearer.'
-    : v > 35 ? 'Low comprehension — the text may confuse users. Consider using simpler language and shorter sentences.'
-    : 'Very low comprehension — significant risk users will misunderstand the message entirely.'
+  return v > 75 ? 'High clarity proxy; actual comprehension requires user testing.'
+    : v > 55 ? 'Moderate clarity proxy; check ambiguous wording with users.'
+    : v > 35 ? 'Low clarity proxy; simplify the language and test comprehension.'
+    : 'Low clarity proxy; user comprehension is unverified.'
 }
 
 function explainTrust(v: number): string {
-  return v > 75 ? 'High trust coherence — the message feels honest and consistent. Users are likely to feel confident acting on it.'
-    : v > 55 ? 'Moderate trust — the text is mostly credible but may contain claims that feel slightly exaggerated.'
-    : v > 35 ? 'Low trust coherence — the text contains patterns that erode confidence, such as unverified authority claims or vague promises.'
-    : 'Very low trust — strong signals of dishonesty or manipulation that will trigger user skepticism.'
+  return v > 75 ? 'Few claim-pattern indicators identified; user trust remains unmeasured.'
+    : v > 55 ? 'Some claim-pattern indicators identified; verify evidence and context.'
+    : v > 35 ? 'Several claim-pattern indicators require contextual review.'
+    : 'Multiple claim-pattern indicators require verification; intent is unknown.'
 }
 
 function explainManipulation(v: number): string {
-  return v > 60 ? 'High manipulation risk — the text uses pressure tactics, false urgency, or authority mimicry that could harm user autonomy.'
-    : v > 35 ? 'Moderate manipulation risk — some persuasive patterns detected but not at a harmful level.'
-    : 'Low manipulation risk — the text is transparent and does not employ coercive persuasion patterns.'
+  return v > 60 ? 'High pressure-language indicator; review context before assessing manipulation.'
+    : v > 35 ? 'Moderate pressure-language indicator; context and intent are not verified.'
+    : 'Few pressure-language markers found; absence does not establish safety.'
 }
 
 const CONFIDENCE_COLOR: Record<string, string> = {
@@ -77,7 +76,6 @@ export function LiveScorePanel() {
     runLiveScore,
   } = useAppContext()
   const [text, setText] = useState(lastLiveScoreText)
-  const [scoringMode, setScoringMode] = useState<ScoringMode>('accurate')
 
   const [rewrites, setRewrites] = useState<RewriteAlternative[] | null>(null)
   const [rewriteLoading, setRewriteLoading] = useState(false)
@@ -87,7 +85,7 @@ export function LiveScorePanel() {
     if (!text.trim() || loading) return
     setRewrites(null)
     setRewriteFallback(false)
-    runLiveScore(text.trim(), scoringMode)
+    runLiveScore(text.trim(), 'accurate')
   }
 
   async function handleGetRewrites() {
@@ -111,15 +109,7 @@ export function LiveScorePanel() {
       setRewrites(res.alternatives)
     } catch {
       setRewriteFallback(true)
-      setRewrites([
-        {
-          text: 'A simplified version of your text would score lower on cognitive load.',
-          rationale: 'Rewrite service unavailable — showing placeholder.',
-          confidence: 'MEDIUM' as const,
-          scores: { cognitiveLoad: 35, comprehensionConfidence: 80, emotionalValence: 50, trustCoherence: 70, manipulationRisk: 10, cognitiveRisk: 'LOW' as const },
-          scoreDelta: { cognitiveLoad: -20, comprehensionConfidence: 15, trustCoherence: 10, manipulationRisk: -10 },
-        },
-      ])
+      setRewrites(null)
     } finally {
       setRewriteLoading(false)
     }
@@ -131,7 +121,7 @@ export function LiveScorePanel() {
       action={
         result ? (
           <span className={`text-xs font-semibold px-2 py-0.5 rounded-full ${RISK_COLOR[result.cognitive_risk]}`}>
-            {result.cognitive_risk} RISK
+            {result.cognitive_risk} {result.scoring_provenance.policy_eligible ? 'RISK' : 'INDEX'}
           </span>
         ) : undefined
       }
@@ -151,31 +141,10 @@ export function LiveScorePanel() {
           ))}
         </div>
 
-        {/* Mode toggle */}
-        <div className="flex items-center gap-2">
-          <span className="text-xs text-gray-400 font-medium">Mode:</span>
-          <div className="flex items-center gap-0.5 rounded-lg border border-gray-200 p-0.5 text-xs">
-            <button
-              onClick={() => setScoringMode('fast')}
-              className={`px-3 py-1 rounded-md font-medium transition-colors ${
-                scoringMode === 'fast' ? 'bg-gray-900 text-white' : 'text-gray-500 hover:text-gray-700'
-              }`}
-            >
-              Fast (INT8)
-            </button>
-            <button
-              onClick={() => setScoringMode('accurate')}
-              className={`px-3 py-1 rounded-md font-medium transition-colors ${
-                scoringMode === 'accurate' ? 'bg-gray-900 text-white' : 'text-gray-500 hover:text-gray-700'
-              }`}
-            >
-              Accurate (FP16)
-            </button>
-          </div>
-          <span className="text-[10px] text-gray-300">
-            {scoringMode === 'fast' ? '~2x faster · slight quality trade-off' : 'Full precision · highest fidelity'}
-          </span>
-        </div>
+        <p className="text-xs text-gray-500">
+          Engine routing is configured on the scoring service. Mathematical fallback for
+          supported text is reported with its provenance after evaluation.
+        </p>
 
         {/* Input */}
         <div className="flex gap-2 items-start">
@@ -232,6 +201,32 @@ export function LiveScorePanel() {
         {/* Results */}
         {!loading && result && (
           <div className="space-y-4 pt-1">
+            <div className="rounded-lg border border-amber-200 bg-amber-50 p-3 text-xs" role="status">
+              <div className="flex flex-wrap gap-2 items-center text-amber-900 font-semibold">
+                <span>Engine: {result.scoring_provenance.engine === 'mathematical' ? 'CME mathematical' : 'TRIBE experimental'}</span>
+                <span className="px-2 py-0.5 rounded bg-amber-100">{result.scoring_provenance.calibration_status}</span>
+                {result.scoring_provenance.fallback_used && <span>Fallback: {result.scoring_provenance.fallback_reason}</span>}
+              </div>
+              <p className="mt-1 text-amber-800">
+                {result.scoring_provenance.policy_eligible
+                  ? 'Validated scores may be eligible for policy checks.'
+                  : 'Advisory indices only. No automatic enforcement or verified claims about human comprehension, trust or brain activity.'}
+              </p>
+              {result.scoring_provenance.unestimated_dimensions?.length ? (
+                <p className="mt-1 text-amber-800">Not estimated: {result.scoring_provenance.unestimated_dimensions.join(', ')}.</p>
+              ) : null}
+              {result.scoring_provenance.evidence?.length ? (
+                <details className="mt-2">
+                  <summary className="cursor-pointer font-semibold">Show linguistic evidence</summary>
+                  <ul className="list-disc pl-5 mt-1">
+                    {result.scoring_provenance.evidence.map(feature => (
+                      <li key={feature.feature}>{feature.feature.replace(/_/g, ' ')}: {feature.count} marker(s)
+                        {feature.examples.length ? ' (' + feature.examples.join('; ') + ')' : ''}</li>
+                    ))}
+                  </ul>
+                </details>
+              ) : null}
+            </div>
             <div className="flex flex-wrap gap-6">
               <Gauge label="Cognitive Load" value={result.cognitive_load} invert />
               <Gauge label="Comprehension" value={result.comprehension_confidence} />
@@ -296,7 +291,7 @@ export function LiveScorePanel() {
                 </div>
               )}
               {rewriteFallback && (
-                <p className="text-xs text-amber-600 mb-2">Rewrite service unavailable — showing cached suggestions</p>
+                <p className="text-xs text-amber-600 mb-2">Rewrite service unavailable. No rewritten scores were generated.</p>
               )}
               {rewrites && (
                 <div className="space-y-2">

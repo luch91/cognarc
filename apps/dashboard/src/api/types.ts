@@ -4,6 +4,7 @@ export type ConnectorName = 'segment' | 'amplitude' | 'mixpanel' | 'posthog' | '
 export type CognitivRisk = 'LOW' | 'MEDIUM' | 'HIGH'
 
 export interface HealthPoint {
+  engine?: string
   date: string
   cognitive_load: number
   comprehension: number

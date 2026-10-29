@@ -149,9 +149,9 @@ function deriveVariantHealth(s: LiveScoreResult): 'FLAGGED' | 'NEEDS_REVIEW' | '
 }
 
 const VARIANT_HEALTH_BADGE = {
-  FLAGGED: { bg: 'bg-red-100 text-red-700', label: 'FLAGGED' },
-  NEEDS_REVIEW: { bg: 'bg-amber-100 text-amber-700', label: 'NEEDS REVIEW' },
-  CLEAR: { bg: 'bg-green-100 text-green-700', label: 'CLEAR' },
+  FLAGGED: { bg: 'bg-red-100 text-red-700', label: 'REVIEW SIGNAL' },
+  NEEDS_REVIEW: { bg: 'bg-amber-100 text-amber-700', label: 'CHECK MARKERS' },
+  CLEAR: { bg: 'bg-green-100 text-green-700', label: 'FEW MARKERS' },
 } as const
 
 function nextLabel(variants: PendingVariant[]): string {
@@ -175,6 +175,7 @@ export function GrowthView() {
   const [rankedVariants, setRankedVariants] = useState<RankedVariant[]>([])
   const [variantScoring, setVariantScoring] = useState(false)
   const [variantProgress, setVariantProgress] = useState(0)
+  const [variantError, setVariantError] = useState<string | null>(null)
   const [lastComparisonDate, setLastComparisonDate] = useState<string | null>(null)
 
   const {
@@ -192,31 +193,41 @@ export function GrowthView() {
 
   async function runVariantComparison() {
     setVariantScoring(true)
+    setVariantError(null)
+    setRankedVariants([])
     setVariantProgress(0)
-    const results: RankedVariant[] = []
-    for (let i = 0; i < pendingVariants.length; i++) {
-      const v = pendingVariants[i]!
-      const textToScore = v.mode === 'url' ? `URL content from ${v.content}` : v.content
-      try {
-        const scores = await scoreTextRemote(textToScore)
-        results.push({ ...v, scores, rank: 0, health: deriveVariantHealth(scores) })
-      } catch {
-        const fallback: LiveScoreResult = { cognitive_load: 50, comprehension_confidence: 60, emotional_valence: 50, trust_coherence: 60, manipulation_risk: 20, cognitive_risk: 'MEDIUM', top_brain_regions: [], explanation: '', model_version: 'mock', latency_ms: 0 }
-        results.push({ ...v, scores: fallback, rank: 0, health: deriveVariantHealth(fallback) })
+    try {
+      if (pendingVariants.some(variant => variant.mode !== 'text')) {
+        throw new Error('Live comparison supports pasted text only. Use URL Analyser for pages. Image scoring needs a validated modality-specific engine.')
       }
-      setVariantProgress(Math.round(((i + 1) / pendingVariants.length) * 100))
+      const results: RankedVariant[] = []
+      for (let i = 0; i < pendingVariants.length; i++) {
+        const variant = pendingVariants[i]!
+        const scores = await scoreTextRemote(variant.content)
+        results.push({ ...variant, scores, rank: 0, health: deriveVariantHealth(scores) })
+        setVariantProgress(Math.round(((i + 1) / pendingVariants.length) * 100))
+      }
+      if (results.length === 0) throw new Error('No comparable variants')
+      const first = results[0]!.scores.scoring_provenance
+      if (results.some(v => v.scores.scoring_provenance.engine !== first.engine ||
+            v.scores.scoring_provenance.calibration_status !== first.calibration_status)) {
+        throw new Error('Variants were evaluated by different engines. Comparison would be misleading.')
+      }
+      results.sort((a, b) => {
+        const scoreA = a.scores.cognitive_load * 0.4 - a.scores.trust_coherence * 0.4 + a.scores.manipulation_risk * 0.2
+        const scoreB = b.scores.cognitive_load * 0.4 - b.scores.trust_coherence * 0.4 + b.scores.manipulation_risk * 0.2
+        return scoreA - scoreB
+      })
+      results.forEach((item, i) => { item.rank = i + 1 })
+      setRankedVariants(results)
+      setLastComparisonDate(new Date().toLocaleString())
+    } catch (error) {
+      setVariantError(error instanceof Error ? error.message : 'Comparison unavailable')
+      setRankedVariants([])
+      setLastComparisonDate(null)
+    } finally {
+      setVariantScoring(false)
     }
-
-    results.sort((a, b) => {
-      const scoreA = a.scores.cognitive_load * 0.4 - a.scores.trust_coherence * 0.4 + a.scores.manipulation_risk * 0.2
-      const scoreB = b.scores.cognitive_load * 0.4 - b.scores.trust_coherence * 0.4 + b.scores.manipulation_risk * 0.2
-      return scoreA - scoreB
-    })
-    results.forEach((r, i) => { r.rank = i + 1 })
-
-    setRankedVariants(results)
-    setVariantScoring(false)
-    setLastComparisonDate(new Date().toLocaleString())
   }
 
   async function runVideoAnalysis(id: string, file: File) {
@@ -669,6 +680,7 @@ export function GrowthView() {
             >
               {variantScoring ? <><Spinner /> Scoring {pendingVariants.length} variants...</> : 'Run Comparison'}
             </button>
+            {variantError && <p role="alert" className="mt-2 text-xs text-red-600">Comparison not completed: {variantError}. No substitute scores were generated.</p>}
 
             {variantScoring && (
               <div className="mt-2">
@@ -685,6 +697,9 @@ export function GrowthView() {
           <div className="space-y-3">
             {lastComparisonDate && (
               <p className="text-xs text-gray-400">Last comparison: {lastComparisonDate}</p>
+            )}
+            {rankedVariants.length > 0 && rankedVariants[0]?.scores.scoring_provenance.policy_eligible === false && (
+              <p className="text-xs text-amber-700">Advisory comparison only. Engine indices are uncalibrated and not suitable for automatic publishing decisions.</p>
             )}
             {rankedVariants.map((v) => {
               const badge = VARIANT_HEALTH_BADGE[v.health]

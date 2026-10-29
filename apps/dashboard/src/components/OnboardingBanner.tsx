@@ -6,7 +6,7 @@ interface Props {
 
 const STEPS = [
   'Verify connection',
-  'Receive your first cognitive score',
+  'Run a separate text evaluation',
 ]
 
 export function OnboardingBanner({ onConnected }: Props) {
@@ -31,8 +31,8 @@ export function OnboardingBanner({ onConnected }: Props) {
   return (
     <div className="border-l-4 border-teal-500 bg-teal-50 rounded-r-xl p-5">
       <div className="mb-4">
-        <h2 className="text-sm font-bold text-teal-900">Connect your first LLM endpoint to start monitoring</h2>
-        <p className="text-xs text-teal-700 mt-0.5">Takes 5 minutes. No code required.</p>
+        <h2 className="text-sm font-bold text-teal-900">Check the scoring service connection</h2>
+        <p className="text-xs text-teal-700 mt-0.5">A healthy API does not imply an LLM endpoint is connected.</p>
       </div>
 
       {/* Step indicator */}
@@ -58,7 +58,7 @@ export function OnboardingBanner({ onConnected }: Props) {
 
       {state === 'success' ? (
         <p className="text-sm font-semibold text-teal-700 animate-pulse">
-          Connected! Receiving first cognitive score…
+          Scoring service reachable. Run a text evaluation to check scoring.
         </p>
       ) : (
         <div className="space-y-2">
@@ -67,7 +67,7 @@ export function OnboardingBanner({ onConnected }: Props) {
             disabled={state === 'testing'}
             className="text-sm font-semibold bg-teal-500 hover:bg-teal-600 text-white px-5 py-2 rounded-lg transition-colors disabled:opacity-50 whitespace-nowrap"
           >
-            {state === 'testing' ? 'Testing connection…' : 'Connect & Start Monitoring'}
+            {state === 'testing' ? 'Testing connection…' : 'Check Service Health'}
           </button>
           {state === 'error' && (
             <p className="text-xs text-red-600 bg-red-50 px-3 py-2 rounded-lg">{errorMsg}</p>

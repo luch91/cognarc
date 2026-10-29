@@ -2,14 +2,13 @@ import { CognArcError } from '@cognarc/types'
 import { TRIBEAdapter, type TRIBEPredictRequest, type TRIBEPredictResponse } from '../engines/TRIBEAdapter.js'
 import type { CognitiveROIMap } from '../tribe/roi-mapping.js'
 
-// Timeouts: Cloud Run GPU cold starts take ~300s (TRIBE + whisperx transcription).
-// Warm requests complete in ~30s. We distinguish the two cases via retry count.
-const COLD_START_TIMEOUT_MS = 360_000
-const WARM_TIMEOUT_MS = 360_000
+// Synchronous scoring must finish within the API gateway's 100-second budget.
+// Cold starts exceeding this budget fall back to CME for supported text.
+const COLD_START_TIMEOUT_MS = 75_000
+const WARM_TIMEOUT_MS = 75_000
 
-// Retry config: up to 3 attempts with exponential backoff.
-// Covers cold-start 503s and transient network errors.
-const MAX_RETRIES = 3
+// One bounded attempt prevents retries from exceeding the gateway deadline.
+const MAX_RETRIES = 1
 const BASE_BACKOFF_MS = 1_000
 
 export class TRIBEGCPAdapter extends TRIBEAdapter {

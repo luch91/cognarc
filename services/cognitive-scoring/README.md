@@ -74,3 +74,7 @@ Set `COGNARC_SCORING_ENGINE=math` to evaluate text directly. When `tribe-local` 
 CME refuses non-text input (HTTP 422). A failed TRIBE call for image, audio or video raises an error rather than inventing scores. The guardrail service requires human review when provenance states that scores are not yet eligible for policy enforcement.
 
 Verification: `pnpm --filter @cognarc/cognitive-scoring typecheck` and `pnpm --filter @cognarc/cognitive-scoring test`. The standalone Vercel scoring proxy is a separate deployment path. It is **not** updated by these engine changes and must be separately connected to this canonical service before claiming production fallback.
+
+## Gate 1 canonical admin integration
+
+See [Gate 1 transport and Cloudflare migration notes](../../docs/gate1-cme-cloudflare-transport.md). Admin adapters must set `COGNARC_SCORING_URL` to the canonical service and supply matching `COGNARC_SCORING_SERVICE_SECRET`; scoring service production requests require this key. Service /health identifies the engine. TRIBE Cloud Run inference is capped to a 75-second attempt to allow automatic CME fallback within the synchronous 100-second gateway budget. Long cold starts therefore become text CME fallback rather than blocking admin indefinitely.

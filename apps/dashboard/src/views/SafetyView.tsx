@@ -53,6 +53,7 @@ export function SafetyView() {
   const [selectedEntry, setSelectedEntry] = useState<FeedEntry | null>(null)
   const [manualText, setManualText] = useState('')
   const [manualScanning, setManualScanning] = useState(false)
+  const [scanError, setScanError] = useState<string | null>(null)
   const [openRemediationId, setOpenRemediationId] = useState<string | null>(null)
   const { manipulationFeed, auditLog, addManipulationFeedEntry, addAuditEntry } = useAppContext()
   const { data: remediations, isLoading: remLoading } = useQuery({ queryKey: ['remediations'], queryFn: fetchRemediations })
@@ -60,11 +61,12 @@ export function SafetyView() {
   async function handleManualScan() {
     if (!manualText.trim()) return
     setManualScanning(true)
+    setScanError(null)
     try {
       const scores = await scoreTextRemote(manualText.trim())
       if (scores.manipulation_risk > 40) {
         addManipulationFeedEntry({
-          category: 'false_urgency',
+          category: 'pattern_review',
           score: Math.round(scores.manipulation_risk),
           time: 'just now',
           excerpt: manualText.slice(0, 60) + (manualText.length > 60 ? '…' : ''),
@@ -73,21 +75,14 @@ export function SafetyView() {
         addAuditEntry({
           action_type: 'MANUAL_MANIPULATION_SCAN',
           zone: 'OBSERVE',
-          outcome: 'flagged',
+          outcome: scores.scoring_provenance.policy_eligible ? 'flagged' : 'advisory_review',
           authorising_human_or_policy: 'user:admin',
           policy_rule: 'manual_scan_v1',
         })
       }
-    } catch {
-      addManipulationFeedEntry({
-        category: 'false_urgency',
-        score: 72,
-        time: 'just now',
-        excerpt: manualText.slice(0, 60) + (manualText.length > 60 ? '…' : ''),
-        source: 'manual',
-      })
+    } catch (err) {
+      setScanError(err instanceof Error ? err.message : 'Scanning service unavailable')
     }
-    setManualText('')
     setManualScanning(false)
   }
 
@@ -109,7 +104,7 @@ export function SafetyView() {
         action={
           <span className="flex items-center gap-1.5 text-xs text-green-600 font-medium">
             <span className="w-2 h-2 rounded-full bg-green-500 animate-pulse" />
-            Live
+            Demo feed with manual submissions
           </span>
         }
       >
@@ -151,6 +146,7 @@ export function SafetyView() {
             placeholder="Paste any content — AI output, ad copy, email body, model response..."
             className="w-full text-sm border border-gray-200 rounded-lg px-3 py-2 h-20 focus:outline-none focus:ring-2 focus:ring-brand-500 resize-none"
           />
+          {scanError && <p role="alert" className="text-xs text-red-600 mt-2">Scan not completed: {scanError}. No risk score was generated.</p>}
           <button
             onClick={() => void handleManualScan()}
             disabled={!manualText.trim() || manualScanning}
