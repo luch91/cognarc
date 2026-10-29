@@ -109,19 +109,23 @@ END $$;
 RESET ROLE;
 
 -- Enforce physical audit immutability even against a privileged writer.
-DO $$
+-- Separate the expected trigger error from the assertion, so a successful
+-- mutation cannot be misinterpreted as a correctly rejected operation.
+DO $
+DECLARE mutation_was_allowed boolean := false;
 BEGIN
   BEGIN
     UPDATE public.admin_audit_events SET event_type = 'tampered';
-    RAISE EXCEPTION 'Database audit UPDATE unexpectedly succeeded';
+    mutation_was_allowed := true;
   EXCEPTION WHEN raise_exception THEN
-    -- Check actual rows below, because our own exception shares P0001.
-    NULL;
+    mutation_was_allowed := false;
   END;
-  IF EXISTS (SELECT 1 FROM public.admin_audit_events WHERE event_type = 'tampered') THEN
-    RAISE EXCEPTION 'Audit ledger was mutated';
+  IF mutation_was_allowed OR EXISTS (
+    SELECT 1 FROM public.admin_audit_events WHERE event_type = 'tampered'
+  ) THEN
+    RAISE EXCEPTION 'Database audit UPDATE unexpectedly succeeded';
   END IF;
-END $$;
+END $;
 DO $$
 BEGIN
   IF EXISTS (
