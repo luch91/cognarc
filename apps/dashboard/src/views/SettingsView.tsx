@@ -2,21 +2,7 @@ import { useState } from 'react'
 import { Card } from '../components/Card.js'
 import { Spinner } from '../components/Spinner.js'
 import { useAppContext } from '../context/AppContext.js'
-
-const ANALYTICS = [
-  { name: 'Segment', detail: 'Event ingestion and write-back' },
-  { name: 'Amplitude', detail: 'Product analytics events' },
-  { name: 'Mixpanel', detail: 'Behavioral analytics events' },
-  { name: 'PostHog', detail: 'Product usage analytics' },
-  { name: 'Google Analytics 4', detail: 'Web analytics data' },
-] as const
-
-const EVAL_PLATFORMS = [
-  { name: 'Braintrust', detail: 'Custom scoring integration' },
-  { name: 'Langfuse', detail: 'Trace evaluator integration' },
-  { name: 'Weights & Biases', detail: 'Weave evaluation integration' },
-  { name: 'Arize Phoenix', detail: 'Model observability integration' },
-] as const
+import { IntegrationRegistry } from '../components/IntegrationRegistry.js'
 
 type Probe = { status: 'unchecked' | 'checking' | 'healthy' | 'unavailable'; engine?: string; error?: string }
 
@@ -65,8 +51,8 @@ export function SettingsView() {
       <div>
         <h1 className="text-xl font-bold text-gray-800">Settings</h1>
         <p className="text-sm text-gray-500 mt-1">
-          Only verified services are reported as connected. Integration credentials and production policy
-          changes will be enabled once authenticated server-side configuration is available.
+          Workspace configuration is stored behind Supabase authentication and database access controls.
+          Provider credentials and verification require trusted server-side integrations.
         </p>
       </div>
 
@@ -96,48 +82,8 @@ export function SettingsView() {
         </p>
       </Card>
 
-      <Card title="LLM Endpoint Connections">
-        <p className="text-sm text-gray-600">No LLM endpoints have been verified for this workspace.</p>
-        <p className="text-xs text-gray-500 mt-2">
-          Adding arbitrary endpoints and storing API keys in browser state is disabled.
-          Connection testing will require an authenticated server-side integration and secret storage.
-        </p>
-      </Card>
-
-      <Card title="Analytics Connectors">
-        <p className="text-xs text-gray-500 mb-3">
-          No provider credentials, ingestion handshakes or write-back permissions are verified.
-          Setup controls are unavailable until backend integration is ready.
-        </p>
-        <ul className="space-y-2" aria-label="Analytics integration availability">
-          {ANALYTICS.map(connector => (
-            <li key={connector.name} className="flex items-center gap-3 p-3 rounded-lg border border-gray-100 bg-gray-50">
-              <div className="flex-1">
-                <p className="text-sm font-medium text-gray-700">{connector.name}</p>
-                <p className="text-xs text-gray-500">{connector.detail}</p>
-              </div>
-              <span className="text-xs font-semibold text-gray-500">Not configured</span>
-            </li>
-          ))}
-        </ul>
-      </Card>
-
-      <Card title="Evaluation Platform Integrations">
-        <p className="text-xs text-gray-500 mb-3">
-          No Braintrust, Langfuse, W&B or Phoenix connection will be marked successful
-          without a verified server-side handshake and persisted configuration.
-        </p>
-        <ul className="space-y-2" aria-label="Evaluation platform availability">
-          {EVAL_PLATFORMS.map(platform => (
-            <li key={platform.name} className="flex items-center gap-3 p-3 rounded-lg border border-gray-100 bg-gray-50">
-              <div className="flex-1">
-                <p className="text-sm font-medium text-gray-700">{platform.name}</p>
-                <p className="text-xs text-gray-500">{platform.detail}</p>
-              </div>
-              <span className="text-xs font-semibold text-gray-500">Not configured</span>
-            </li>
-          ))}
-        </ul>
+      <Card title="Persisted Integration Registry">
+        <IntegrationRegistry />
       </Card>
 
       <Card title="Thresholds: session preview only">
@@ -170,13 +116,6 @@ export function SettingsView() {
         {saveMessage && <p role="status" className="text-sm text-teal-700 mt-2">{saveMessage}</p>}
       </Card>
 
-      <Card title="GitHub / CI-CD">
-        <p className="text-sm text-gray-700">No GitHub repositories have been verified or connected through this admin.</p>
-        <p className="text-xs text-gray-500 mt-2">
-          Repository access, webhook verification and CI checks require a server-side installation
-          with authenticated GitHub permissions. The previous sample repository has been removed.
-        </p>
-      </Card>
     </div>
   )
 }

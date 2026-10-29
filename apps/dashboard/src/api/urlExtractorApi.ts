@@ -1,3 +1,5 @@
+import { getWorkspaceRequestAuth } from './workspaceSession.js'
+
 export interface ContentSection {
   sectionType: 'hero' | 'headline' | 'value_prop' | 'body' | 'cta' |
                'nav' | 'footer' | 'meta' | 'feature'
@@ -24,10 +26,11 @@ export async function extractUrl(
   _workspaceId: string,
   _maxSections: number = 10
 ): Promise<ExtractResponse> {
+  const auth = await getWorkspaceRequestAuth()
   const res = await fetch('/api/extract-url', {
     method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ url }),
+    headers: { 'Content-Type': 'application/json', Authorization: auth.authorization },
+    body: JSON.stringify({ url, workspace_id: auth.workspaceId }),
   })
 
   if (!res.ok) {

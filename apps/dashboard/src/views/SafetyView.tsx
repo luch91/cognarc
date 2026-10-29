@@ -4,6 +4,7 @@ import { useVirtualizer } from '@tanstack/react-virtual'
 import { fetchRemediations } from '../api/mock.js'
 import { scoreTextRemote } from '../api/scoringApi.js'
 import { Card } from '../components/Card.js'
+import { AuthoritativeAuditPanel } from '../components/AuthoritativeAuditPanel.js'
 import { EvidenceDrawer } from '../components/EvidenceDrawer.js'
 import { Spinner } from '../components/Spinner.js'
 import { ZoneBadge } from '../components/ZoneBadge.js'
@@ -97,6 +98,7 @@ export function SafetyView() {
   return (
     <div className="space-y-6">
       <h1 className="text-xl font-bold text-gray-800">Safety / Red Team View</h1>
+      <AuthoritativeAuditPanel />
 
       {/* Manipulation Detection Feed */}
       <Card

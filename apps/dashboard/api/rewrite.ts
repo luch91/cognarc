@@ -180,16 +180,18 @@ function stripMarkdownFences(raw: string): string {
 }
 
 export default async function handler(req: VercelRequest, res: VercelResponse) {
-  res.setHeader('Access-Control-Allow-Origin', '*')
+  res.setHeader('Cache-Control', 'no-store')
   res.setHeader('Access-Control-Allow-Methods', 'POST, OPTIONS')
   res.setHeader('Access-Control-Allow-Headers', 'Content-Type')
 
   if (req.method === 'OPTIONS') { res.status(204).end(); return }
   if (req.method !== 'POST') { res.status(405).json({ error: 'Method not allowed' }); return }
+  const access = await verifyWorkspaceRequest(req)
+  if (!access.ok) { res.status(access.status).json({ error: access.error }); return }
   if (!GROQ_API_KEY && !OPENROUTER_API_KEY) { res.status(500).json({ error: 'No LLM API key configured' }); return }
 
   const body = req.body as Record<string, unknown> | undefined
-  if (!body || typeof body.original_text !== 'string') {
+  if (!body || typeof body.original_text !== 'string' || !body.original_text.trim() || body.original_text.length > 20_000) {
     res.status(400).json({ error: 'Missing required field: original_text' })
     return
   }

@@ -1,317 +1,135 @@
-import { useRef, useState } from 'react'
+import { useEffect, useState } from 'react'
 import { Card } from '../components/Card.js'
-import { ScoreGauge } from '../components/ScoreGauge.js'
-import { Spinner } from '../components/Spinner.js'
-import { useAppContext } from '../context/AppContext.js'
-import { rewrite } from '../api/rewriteApi.js'
-import type { RewriteAlternative } from '../api/rewriteApi.js'
-import type { ActGatedItem } from '../api/types.js'
-
-const STATUS_BADGE: Record<string, string> = {
-  pending: 'bg-orange-100 text-orange-700',
-  approved: 'bg-green-100 text-green-700',
-  rejected: 'bg-red-100 text-red-700',
-}
-
-const CONFIDENCE_BADGE: Record<string, string> = {
-  HIGH:   'bg-emerald-100 text-emerald-700',
-  MEDIUM: 'bg-amber-100 text-amber-700',
-  LOW:    'bg-gray-100 text-gray-500',
-}
-
-const DECISION_DEADLINES: Record<string, string> = {
-  'ag1': '5/20/2026, 2:13 PM',
-  'ag2': '5/20/2026, 1:23 PM',
-}
-
-// Extract the original copy text from the item for rewriting.
-// For CONTENT_FLAG items the evidence_summary contains the flagged copy.
-// For THRESHOLD_BREACH items we use the description as the prompt text.
-function originalTextFor(item: ActGatedItem): string {
-  if (item.action_type === 'CONTENT_FLAG') {
-    // Pull the quoted/italic copy from evidence_summary if present, else use the whole summary
-    const match = item.evidence_summary.match(/"([^"]+)"/)
-    return match ? match[1]! : item.evidence_summary
-  }
-  return item.description
-}
-
-function copyTypeFor(item: ActGatedItem): 'campaign' | 'prompt' {
-  return item.action_type === 'THRESHOLD_BREACH' ? 'prompt' : 'campaign'
-}
-
-function taxonomyFor(item: ActGatedItem) {
-  const s = item.cognitive_scores
-  return {
-    falseUrgency:           s.manipulation_risk > 60 ? 84 : 20,
-    authorityMimicry:       s.trust < 50 ? 71 : 15,
-    ambiguityExploitation:  s.comprehension < 50 ? 60 : 10,
-    socialProofFabrication: s.manipulation_risk > 70 ? 55 : 10,
-  }
-}
-
-function AlternativeRow({ index, alt }: { index: number; alt: RewriteAlternative }) {
-  const [copied, setCopied] = useState(false)
-  const d = alt.scoreDelta
-  return (
-    <div className="rounded-lg border border-gray-100 bg-white overflow-hidden">
-      <div className="flex items-center gap-2 px-3 py-2 border-b border-gray-50 bg-gray-50">
-        <span className="w-5 h-5 rounded-full bg-brand-100 text-brand-700 text-xs font-bold flex items-center justify-center shrink-0">
-          {index}
-        </span>
-        <span className={`text-[10px] font-bold px-1.5 py-0.5 rounded-full ${CONFIDENCE_BADGE[alt.confidence]}`}>
-          {alt.confidence}
-        </span>
-        <span className="flex-1" />
-        <button
-          onClick={() => { void navigator.clipboard.writeText(alt.text); setCopied(true); setTimeout(() => setCopied(false), 2000) }}
-          className="text-xs px-2 py-0.5 rounded border border-teal-500 text-teal-600 hover:bg-teal-50 transition-colors"
-        >
-          {copied ? 'Copied ✓' : 'Use this'}
-        </button>
-      </div>
-      <div className="px-3 py-2.5 space-y-1.5">
-        <p className="text-sm text-gray-700">{alt.text}</p>
-        <p className="text-xs text-gray-400 italic">{alt.rationale}</p>
-        <p className="text-xs text-gray-500">
-          Load: <strong>{Math.round(alt.scores.cognitiveLoad)}</strong>
-          {d.cognitiveLoad !== 0 && (
-            <span className={d.cognitiveLoad < 0 ? 'text-emerald-600' : 'text-red-500'}>
-              {' '}({d.cognitiveLoad > 0 ? '+' : ''}{Math.round(d.cognitiveLoad)})
-            </span>
-          )}
-          {' · '}Manip: <strong>{Math.round(alt.scores.manipulationRisk)}</strong>
-          {d.manipulationRisk !== 0 && (
-            <span className={d.manipulationRisk < 0 ? 'text-emerald-600' : 'text-red-500'}>
-              {' '}({d.manipulationRisk > 0 ? '+' : ''}{Math.round(d.manipulationRisk)})
-            </span>
-          )}
-        </p>
-      </div>
-    </div>
-  )
-}
-
-function ActGatedCard({ item }: { item: ActGatedItem }) {
-  const [expanded, setExpanded] = useState(false)
-
-  // Per-item rewrite cache — survives collapse/expand cycles
-  const altCache = useRef<RewriteAlternative[] | null>(null)
-  const [altsLoading, setAltsLoading] = useState(false)
-  const [alternatives, setAlternatives] = useState<RewriteAlternative[] | null>(null)
-  const [altsFallback, setAltsFallback] = useState(false)
-
-  function handleToggle() {
-    const next = !expanded
-    setExpanded(next)
-    if (next && !altCache.current) {
-      void loadAlternatives()
-    }
-  }
-
-  async function loadAlternatives() {
-    setAltsLoading(true)
-    const s = item.cognitive_scores
-    try {
-      const res = await rewrite({
-        originalText: originalTextFor(item),
-        copyType: copyTypeFor(item),
-        scores: {
-          cognitiveLoad: s.cognitive_load,
-          comprehensionConfidence: s.comprehension,
-          emotionalValence: 50,
-          trustCoherence: s.trust,
-          manipulationRisk: s.manipulation_risk,
-          cognitiveRisk: s.cognitive_load > 70 || s.manipulation_risk > 60 ? 'HIGH' : 'MEDIUM',
-        },
-        taxonomy: taxonomyFor(item),
-        workspaceId: 'ws-1',
-      })
-      altCache.current = res.alternatives
-      setAlternatives(res.alternatives)
-    } catch {
-      // Never invent alternative scores, safety confidence or deltas.
-      setAlternatives(null)
-      setAltsFallback(true)
-    } finally {
-      setAltsLoading(false)
-    }
-  }
-
-  return (
-    <div className="border border-gray-200 rounded-xl overflow-hidden">
-      {/* Header */}
-      <div className="p-4 flex items-start gap-3">
-        <span className={`px-2 py-0.5 rounded text-xs font-bold shrink-0 mt-0.5 ${STATUS_BADGE[item.status]}`}>
-          {item.status.toUpperCase()}
-        </span>
-        <div className="flex-1 min-w-0">
-          <p className="text-sm font-semibold text-gray-700">{item.description}</p>
-          <p className="text-xs text-gray-400 mt-0.5">
-            Requested: {new Date(item.requested_at).toLocaleString()} ·
-            Type: <span className="font-mono">{item.action_type}</span>
-          </p>
-          {item.status === 'pending' && DECISION_DEADLINES[item.id] && (
-            <p className="text-xs text-orange-500 font-medium mt-0.5">
-              Decision required by: {DECISION_DEADLINES[item.id]}
-            </p>
-          )}
-        </div>
-        <button
-          onClick={handleToggle}
-          className="text-xs text-brand-500 hover:text-brand-700 shrink-0 focus:outline-none focus:underline"
-          aria-expanded={expanded}
-        >
-          {expanded ? 'Hide details' : 'View package'}
-        </button>
-      </div>
-
-      {/* Decision package */}
-      {expanded && (
-        <div className="border-t border-gray-100 bg-gray-50 p-4 space-y-4">
-          {/* Cognitive scores */}
-          <div>
-            <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-2">Cognitive Evidence — Scores</p>
-            <div className="flex flex-wrap gap-6 justify-around bg-white rounded-lg p-3 border border-gray-100">
-              <div className="flex flex-col items-center">
-                <ScoreGauge label="Cognitive Load" value={item.cognitive_scores.cognitive_load} invert size="sm" />
-                <span className="text-xs text-gray-400 mt-0.5">± 7</span>
-              </div>
-              <div className="flex flex-col items-center">
-                <ScoreGauge label="Comprehension" value={item.cognitive_scores.comprehension} size="sm" />
-                <span className="text-xs text-gray-400 mt-0.5">± 9</span>
-              </div>
-              <div className="flex flex-col items-center">
-                <ScoreGauge label="Trust" value={item.cognitive_scores.trust} size="sm" />
-                <span className="text-xs text-gray-400 mt-0.5">± 6</span>
-              </div>
-              <div className="flex flex-col items-center">
-                <ScoreGauge label="Manipulation" value={item.cognitive_scores.manipulation_risk} invert size="sm" />
-                <span className="text-xs text-gray-400 mt-0.5">± 5</span>
-              </div>
-            </div>
-          </div>
-
-          {/* Top brain regions */}
-          <div>
-            <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-1">Top Brain Regions</p>
-            <p className="text-sm text-gray-600">Prefrontal cortex · Anterior cingulate · Limbic system</p>
-          </div>
-
-          {/* Evidence summary */}
-          <div>
-            <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-1">Evidence Summary</p>
-            <p className="text-sm text-gray-600">{item.evidence_summary}</p>
-          </div>
-
-          {/* Proposed action */}
-          <div>
-            <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-1">Proposed Action</p>
-            <p className="text-sm text-gray-700 font-medium">{item.proposed_action}</p>
-          </div>
-
-          {/* Alternatives Considered */}
-          <div>
-            <div className="flex items-center gap-2 mb-2">
-              <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide">Alternatives Considered</p>
-              {altsLoading && (
-                <span className="text-xs text-gray-400 flex items-center gap-1">
-                  <Spinner />
-                  Generating alternatives…
-                </span>
-              )}
-            </div>
-
-            {altsFallback && (
-              <p className="text-xs text-amber-600 bg-amber-50 border border-amber-100 rounded px-2 py-1 mb-2">
-                Rewrite service unavailable. No alternative scores were generated.
-              </p>
-            )}
-
-            {/* Loading skeleton */}
-            {altsLoading && (
-              <div className="space-y-2">
-                {[0, 1, 2].map((i) => (
-                  <div key={i} className="animate-pulse rounded-lg bg-gray-100 h-14" />
-                ))}
-              </div>
-            )}
-
-            {/* Live or fallback alternatives */}
-            {!altsLoading && alternatives && (
-              <div className="space-y-2">
-                {alternatives.map((alt, i) => (
-                  <AlternativeRow key={i} index={i + 1} alt={alt} />
-                ))}
-              </div>
-            )}
-          </div>
-
-          {/* Decision if already resolved */}
-          {item.status !== 'pending' ? (
-            <div className="bg-white rounded-lg p-3 border border-gray-100">
-              <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-1">
-                {item.status === 'approved' ? '✓ Approved' : '✗ Rejected'} by {item.reviewer}
-              </p>
-              <p className="text-sm text-gray-600 italic">"{item.justification}"</p>
-              <p className="text-xs text-gray-400 mt-1">{item.reviewed_at ? new Date(item.reviewed_at).toLocaleString() : ''}</p>
-            </div>
-          ) : (
-            <p role="status" className="text-xs bg-amber-50 border border-amber-200 text-amber-800 rounded-lg p-3">
-              Approval and rejection are unavailable until an authenticated, authoritative
-              review API and persistent audit trail are connected. No local action is accepted.
-            </p>
-          )}
-        </div>
-      )}
-
-    </div>
-  )
-}
+import { useAdminAuth } from '../context/AdminAuthContext.js'
+import {
+  listAdminApprovals, decideAdminApproval, type AdminApproval,
+} from '../api/adminApi.js'
 
 export function ApprovalsView() {
-  const { actGatedQueue } = useAppContext()
+  const { workspace, user } = useAdminAuth()
+  const [items, setItems] = useState<AdminApproval[]>([])
+  const [loading, setLoading] = useState(true)
+  const [error, setError] = useState('')
+  const [selected, setSelected] = useState<AdminApproval | null>(null)
+  const [decision, setDecision] = useState<'approved' | 'rejected'>('rejected')
+  const [justification, setJustification] = useState('')
+  const [saving, setSaving] = useState(false)
+  const [message, setMessage] = useState('')
 
-  const pending = actGatedQueue.filter((i) => i.status === 'pending')
-  const resolved = actGatedQueue.filter((i) => i.status !== 'pending')
+  async function reload() {
+    if (!workspace) return
+    setError('')
+    setLoading(true)
+    try {
+      setItems(await listAdminApprovals(workspace.id))
+    } catch (err) {
+      setItems([])
+      setError(err instanceof Error ? err.message : 'Cannot load authoritative approvals')
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  useEffect(() => { void reload() }, [workspace?.id])
+
+  async function submitDecision() {
+    if (!workspace || !selected || saving) return
+    setSaving(true)
+    setError('')
+    setMessage('')
+    try {
+      const result = await decideAdminApproval(workspace.id, selected.id, decision, justification)
+      setSelected(null)
+      setJustification('')
+      await reload()
+      setMessage(result.status === 'approved'
+        ? 'Approval recorded by the database. No automated action was executed.'
+        : 'Rejection recorded by the database.')
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Decision was not confirmed')
+      await reload()
+    } finally {
+      setSaving(false)
+    }
+  }
 
   return (
     <div className="space-y-6">
-      <div className="flex items-center gap-3">
+      <div className="flex flex-wrap items-center justify-between gap-4">
         <h1 className="text-xl font-bold text-gray-800">Act-Gated Approvals</h1>
-        {pending.length > 0 && (
-          <span className="bg-orange-100 text-orange-700 text-sm font-bold px-2.5 py-0.5 rounded-full animate-pulse">
-            {pending.length} pending
-          </span>
-        )}
+        <button onClick={() => { void reload() }} disabled={loading || saving}
+          className="px-3 py-2 text-xs border rounded-lg disabled:opacity-40">Refresh records</button>
       </div>
-      <p role="status" className="text-xs text-amber-800 bg-amber-50 rounded-lg p-3">
-        Read-only queue. Decisions are disabled until reviewer identity, authorization
-        and server-persisted approvals are implemented.
+      <p className="text-xs text-amber-900 bg-amber-50 border border-amber-200 p-3 rounded-lg">
+        Only requests submitted by trusted server-side workflows are displayed. Review decisions
+        are atomic database transactions with immutable audit entries. Recording an approval
+        does not execute the proposed action or override model-calibration restrictions.
       </p>
-
-      <>
-        {/* Pending approvals */}
-        {pending.length > 0 ? (
-          <div className="space-y-3">
-            <h2 className="text-sm font-semibold text-gray-500 uppercase tracking-wide">Pending Approval</h2>
-            {pending.map((item) => <ActGatedCard key={item.id} item={item} />)}
+      {workspace && <p className="text-xs text-gray-500">Workspace: {workspace.name} ({workspace.id})</p>}
+      {loading && <p role="status" className="text-sm text-gray-500">Loading authoritative approval records...</p>}
+      {error && <p role="alert" className="text-sm text-red-700">{error}</p>}
+      {message && <p role="status" className="text-sm text-teal-700">{message}</p>}
+      {!loading && !error && items.length === 0 && (
+        <Card title="No approval requests"><p className="text-sm text-gray-500">
+          No requests were submitted by an authorised server-side workflow.
+        </p></Card>
+      )}
+      <div className="space-y-3">
+        {items.map(item => (
+          <Card key={item.id} title={item.action_type}>
+            <div className="flex flex-wrap items-start justify-between gap-4">
+              <div className="flex-1 min-w-0 space-y-2">
+                <p className="text-sm font-medium text-gray-800">{item.description}</p>
+                <p className="text-xs text-gray-500">Requested {new Date(item.created_at).toLocaleString()}</p>
+                <span className="inline-flex px-2 py-0.5 text-xs bg-gray-100 rounded">Status: {item.status}</span>
+                {item.evidence && Object.keys(item.evidence).length > 0 && (
+                  <details className="text-xs text-gray-600">
+                    <summary className="cursor-pointer">Evidence package</summary>
+                    <pre className="mt-2 whitespace-pre-wrap break-all bg-gray-50 rounded p-2 overflow-auto">
+                      {JSON.stringify(item.evidence, null, 2)}
+                    </pre>
+                  </details>
+                )}
+                {item.status !== 'pending' && (
+                  <p className="text-xs text-gray-600">
+                    Reviewed by {item.reviewer_id === user?.id ? 'you' : item.reviewer_id ?? 'unknown'}:
+                    {' '}{item.justification} ({item.decided_at ? new Date(item.decided_at).toLocaleString() : 'unknown date'})
+                  </p>
+                )}
+              </div>
+              {item.status === 'pending' && <div className="flex gap-2">
+                <button onClick={() => { setSelected(item); setDecision('rejected'); setJustification('') }}
+                  className="text-xs px-3 py-2 rounded-lg border border-red-300 text-red-700">Reject</button>
+                <button onClick={() => { setSelected(item); setDecision('approved'); setJustification('') }}
+                  className="text-xs px-3 py-2 rounded-lg border border-teal-400 text-teal-800">Approve review</button>
+              </div>}
             </div>
-          ) : (
-            <div className="flex flex-col items-center justify-center py-12 text-gray-400 border-2 border-dashed border-gray-200 rounded-xl">
-              <span className="text-3xl mb-2" aria-hidden>✓</span>
-              <p className="text-sm font-medium">No pending approvals</p>
+          </Card>
+        ))}
+      </div>
+      {selected && (
+        <div className="fixed inset-0 z-50 bg-black/60 grid place-items-center p-4" role="presentation">
+          <div role="dialog" aria-modal="true" aria-labelledby="approval-title"
+            className="bg-white rounded-xl shadow-xl w-full max-w-lg p-6 space-y-4">
+            <h2 id="approval-title" className="text-lg font-semibold">{decision === 'approved' ? 'Record approval' : 'Record rejection'}</h2>
+            <p className="text-sm text-gray-700">{selected.description}</p>
+            <p className="text-xs text-amber-800">This review does not execute the action.</p>
+            <label htmlFor="decision-justification" className="text-sm font-medium block">Required justification (12 to 2000 characters)</label>
+            <textarea id="decision-justification" rows={4} value={justification}
+              onChange={e => setJustification(e.target.value)} maxLength={2000}
+              className="w-full rounded-lg border border-gray-300 p-3 text-sm"/>
+            <div className="flex flex-wrap justify-end gap-2">
+              <button onClick={() => setSelected(null)} disabled={saving}
+                className="px-4 py-2 border rounded-lg text-sm">Cancel</button>
+              <button disabled={saving || justification.trim().length < 12}
+                onClick={() => { void submitDecision() }}
+                className="px-4 py-2 bg-brand-500 text-white rounded-lg text-sm disabled:opacity-40">
+                {saving ? 'Saving...' : 'Confirm decision'}
+              </button>
             </div>
-          )}
-
-        {/* Resolved */}
-        {resolved.length > 0 && (
-          <div className="space-y-3">
-            <h2 className="text-sm font-semibold text-gray-500 uppercase tracking-wide">Recently Resolved</h2>
-            {resolved.map((item) => <ActGatedCard key={item.id} item={item} />)}
           </div>
-        )}
-      </>
+        </div>
+      )}
     </div>
   )
 }

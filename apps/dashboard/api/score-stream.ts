@@ -1,4 +1,5 @@
 import type { VercelRequest, VercelResponse } from '@vercel/node'
+import { verifyWorkspaceRequest } from './_auth.js'
 
 // Same canonical /score endpoint as the synchronous adapter.
 // SSE stages indicate observed request lifecycle, never invented model activity.
@@ -24,8 +25,10 @@ export default async function handler(req: VercelRequest, res: VercelResponse): 
   res.setHeader('Cache-Control', 'no-store')
   if (req.method !== 'POST') { res.status(405).json({ error: 'Method not allowed' }); return }
   if (!SERVICE_URL || !SERVICE_SECRET) { res.status(503).json({ error: 'Canonical scoring service is not configured' }); return }
+  const access = await verifyWorkspaceRequest(req)
+  if (!access.ok) { res.status(access.status).json({ error: access.error }); return }
   const body = req.body as Record<string, unknown> | undefined
-  if (!body || typeof body.content !== 'string' || !body.content.trim() ||
+  if (!body || typeof body.content !== 'string' || !body.content.trim() || body.content.length > 20_000 ||
       !['text','image','audio','video'].includes(String(body.stimulus_type)) ||
       typeof body.workspace_id !== 'string' || !body.workspace_id.trim()) {
     res.status(400).json({ error: 'Invalid scoring request' }); return
@@ -40,7 +43,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse): 
     const upstream = await fetch(SERVICE_URL.replace(/\/$/, '') + '/score', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json', 'X-CognArc-Key': SERVICE_SECRET },
-      body: JSON.stringify(body),
+      body: JSON.stringify({ ...body, workspace_id: access.workspaceId }),
       signal: AbortSignal.timeout(100_000),
     })
     if (!upstream.ok) { emit('error', { error: 'Canonical scoring service returned ' + upstream.status }); res.end(); return }

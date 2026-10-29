@@ -1,6 +1,5 @@
-import { createContext, useContext, useState, useEffect, type ReactNode } from 'react'
-import { supabase } from '../api/supabaseClient.js'
-import type { AgentAction, AuditEntry, ActGatedItem, ConnectorStatus, CreativeAsset, HealthPoint, VideoAnalysisResult } from '../api/types.js'
+import { createContext, useContext, useState, type ReactNode } from 'react'
+import type { AgentAction, AuditEntry, ActGatedItem, ConnectorStatus, CreativeAsset, HealthPoint } from '../api/types.js'
 import type { LiveScoreResult, ScoringMode, ScoringProgress } from '../api/scoringApi.js'
 import { scoreTextStream } from '../api/scoringApi.js'
 
@@ -130,40 +129,6 @@ export function AppProvider({ children }: { children: ReactNode }) {
   const [liveScoreLoading, setLiveScoreLoading] = useState(false)
   const [liveScoreProgress, setLiveScoreProgress] = useState<ScoringProgress | null>(null)
   const [liveScoreError, setLiveScoreError] = useState<string | null>(null)
-
-  // C07: hydrate persisted video reports from Supabase on mount
-  useEffect(() => {
-    if (!supabase) return
-    supabase
-      .from('evaluation_queue')
-      .select('*')
-      .not('video_report', 'is', null)
-      .then(({ data, error }) => {
-        if (error || !data) return
-        setEvaluationQueue((prev) => {
-          const existing = new Set(prev.map((i) => i.id))
-          const merged = [...prev]
-          for (const row of data as Array<Record<string, unknown>>) {
-            if (!existing.has(row.id as string)) {
-              const mr = typeof row.manipulation_risk === 'number' ? row.manipulation_risk : 0
-              const item: CreativeAsset = {
-                id: row.id as string,
-                name: (row.name as string) ?? 'video',
-                type: 'video',
-                uploaded_at: (row.created_at as string) ?? new Date().toISOString(),
-                status: 'complete',
-                risk: mr > 60 ? 'HIGH' : mr > 40 ? 'MEDIUM' : 'LOW',
-              }
-              if (row.video_report != null) item.videoAnalysis = row.video_report as VideoAnalysisResult
-              if (typeof row.cognitive_load === 'number') item.cognitive_load = row.cognitive_load
-              if (typeof row.trust_coherence === 'number') item.trust = row.trust_coherence
-              merged.push(item)
-            }
-          }
-          return merged
-        })
-      })
-  }, [])
 
   function addToEvaluationQueue(item: CreativeAsset) {
     setEvaluationQueue((prev) => [item, ...prev])

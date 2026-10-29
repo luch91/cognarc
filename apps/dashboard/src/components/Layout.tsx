@@ -1,6 +1,6 @@
 import { NavLink, Outlet } from 'react-router-dom'
 import { KillSwitch } from './KillSwitch.js'
-import { useKillSwitch } from '../context/KillSwitchContext.js'
+import { useAdminAuth } from '../context/AdminAuthContext.js'
 
 const NAV_ITEMS: Array<{ to: string; label: string }> = [
   { to: '/', label: 'Workspace Overview' },
@@ -14,7 +14,7 @@ const NAV_ITEMS: Array<{ to: string; label: string }> = [
 ]
 
 export function Layout() {
-  const { banner, setBanner } = useKillSwitch()
+  const { workspace, user, signOut } = useAdminAuth()
 
   return (
     <div className="flex h-screen bg-gray-50 overflow-hidden">
@@ -55,24 +55,14 @@ export function Layout() {
         {/* Topbar */}
         <header className="h-14 flex-shrink-0 bg-white border-b border-gray-200 flex items-center justify-between px-6">
           <span className="text-sm text-gray-500">
-            View: <span className="font-semibold text-gray-700">Local preview (not authenticated)</span>
+            Workspace: <span className="font-semibold text-gray-700">{workspace?.name ?? 'Unavailable'}</span>
           </span>
-          <KillSwitch />
-        </header>
-
-        {/* Kill Switch banner */}
-        {banner && (
-          <div className="flex items-center justify-between px-6 py-2 bg-amber-50 border-b border-amber-200 text-amber-800 text-sm font-medium">
-            <span>⚠ Agent actions paused — monitoring continues. Kill switch is active.</span>
-            <button
-              onClick={() => setBanner(false)}
-              className="ml-4 text-amber-600 hover:text-amber-800 font-bold leading-none"
-              aria-label="Dismiss banner"
-            >
-              ✕
-            </button>
+          <div className="flex items-center gap-3">
+            <span className="hidden md:inline text-xs text-gray-500" title={user?.email}>{user?.email}</span>
+            <KillSwitch />
+            <button onClick={() => { void signOut() }} className="text-xs border rounded px-3 py-1.5">Sign out</button>
           </div>
-        )}
+        </header>
 
         {/* Content */}
         <main className="flex-1 overflow-y-auto p-6">

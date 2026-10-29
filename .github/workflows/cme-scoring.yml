@@ -5,6 +5,9 @@ on:
       - 'services/cognitive-scoring/**'
       - 'services/guardrail-engine/**'
       - 'apps/dashboard/**'
+      - 'infrastructure/supabase/gate3-*.sql'
+      - 'tests/db/**'
+      - 'docs/gate3-auth-workspaces-approvals.md'
       - 'services/scoring-proxy/**'
       - 'api/**'
       - 'docs/gate1-cme-cloudflare-transport.md'
@@ -15,6 +18,7 @@ on:
       - 'feat/cme-mathematical-fallback'
       - 'feat/gate1-admin-cme-cloudflare-ready'
       - 'feat/gate2-admin-operational-integrity'
+      - 'feat/gate3-auth-workspaces-audit'
     paths:
       - 'services/cognitive-scoring/**'
       - 'services/guardrail-engine/**'
@@ -27,6 +31,19 @@ on:
 jobs:
   verify:
     runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: cognarc_gate3
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd="pg_isready -U postgres"
+          --health-interval=5s
+          --health-timeout=5s
+          --health-retries=10
     steps:
       - uses: actions/checkout@v4
       - uses: pnpm/action-setup@v4
@@ -41,7 +58,23 @@ jobs:
       - run: pnpm --filter @cognarc/cognitive-scoring typecheck
       - run: pnpm --filter @cognarc/guardrail-engine typecheck
       - run: pnpm --filter @cognarc/dashboard typecheck
+      - run: pnpm --filter @cognarc/dashboard build
       - run: pnpm --filter @cognarc/scoring-proxy exec tsc --noEmit
       - run: pnpm --filter @cognarc/dashboard exec jest --runInBand
       - run: pnpm --filter @cognarc/cognitive-scoring exec jest --runInBand
       - run: pnpm --filter @cognarc/guardrail-engine exec jest --runInBand
+      - name: Verify Gate 3 PostgreSQL RLS, RPCs and immutable audit
+        env:
+          PGHOST: localhost
+          PGPORT: '5432'
+          PGUSER: postgres
+          PGPASSWORD: postgres
+          PGDATABASE: cognarc_gate3
+        run: |
+          if ! command -v psql >/dev/null; then sudo apt-get update -qq && sudo apt-get install -y postgresql-client; fi
+          psql -v ON_ERROR_STOP=1 -f tests/db/gate3-bootstrap.sql
+          psql -v ON_ERROR_STOP=1 -f infrastructure/supabase/workspaces-bootstrap.sql
+          psql -v ON_ERROR_STOP=1 -f infrastructure/supabase/001_schema.sql
+          psql -v ON_ERROR_STOP=1 -f infrastructure/supabase/gate3-admin-auth-rls.sql
+          psql -v ON_ERROR_STOP=1 -f infrastructure/supabase/gate3-legacy-secret-lockdown.sql
+          psql -v ON_ERROR_STOP=1 -f tests/db/gate3-boundaries.sql
