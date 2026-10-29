@@ -3,7 +3,8 @@ const SERVICE_URL = process.env.COGNARC_SCORING_URL ?? ''
 export default async function handler(req: VercelRequest, res: VercelResponse): Promise<void> {
   res.setHeader('Cache-Control', 'no-store')
   if (req.method !== 'GET') { res.status(405).json({ ok: false, error: 'Method not allowed' }); return }
-  if (!process.env.COGNARC_PROXY_SECRET || req.headers['x-cognarc-key'] !== process.env.COGNARC_PROXY_SECRET) { res.status(401).json({ ok: false, error: 'Unauthorized' }); return }\n  if (!SERVICE_URL) { res.status(503).json({ ok: false, error: 'Canonical scoring service is not configured' }); return }
+  if (!process.env.COGNARC_PROXY_SECRET || req.headers['x-cognarc-key'] !== process.env.COGNARC_PROXY_SECRET) { res.status(401).json({ ok: false, error: 'Unauthorized' }); return }
+  if (!SERVICE_URL) { res.status(503).json({ ok: false, error: 'Canonical scoring service is not configured' }); return }
   try {
     const upstream = await fetch(SERVICE_URL.replace(/\/$/, '') + '/health', { signal: AbortSignal.timeout(5_000) })
     const payload: unknown = upstream.ok ? await upstream.json() : null

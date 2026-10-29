@@ -3,15 +3,11 @@ on:
   pull_request:
     paths:
       - 'services/cognitive-scoring/**'
-      - 'apps/dashboard/**'
-      - 'services/scoring-proxy/**'
-      - 'api/**'
-      - 'docs/gate1-cme-cloudflare-transport.md'
-      - 'apps/dashboard/**'
-      - 'services/scoring-proxy/**'
-      - 'api/**'
-      - 'docs/gate1-cme-cloudflare-transport.md'
       - 'services/guardrail-engine/**'
+      - 'apps/dashboard/**'
+      - 'services/scoring-proxy/**'
+      - 'api/**'
+      - 'docs/gate1-cme-cloudflare-transport.md'
       - 'packages/cognarc-types/**'
       - '.github/workflows/cme-scoring.yml'
   push:
@@ -21,6 +17,10 @@ on:
     paths:
       - 'services/cognitive-scoring/**'
       - 'services/guardrail-engine/**'
+      - 'apps/dashboard/**'
+      - 'services/scoring-proxy/**'
+      - 'api/**'
+      - 'docs/gate1-cme-cloudflare-transport.md'
       - 'packages/cognarc-types/**'
       - '.github/workflows/cme-scoring.yml'
 jobs:

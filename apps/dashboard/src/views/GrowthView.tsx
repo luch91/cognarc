@@ -679,8 +679,8 @@ export function GrowthView() {
               className="w-full mt-3 text-sm py-2.5 rounded-lg bg-teal-500 text-white font-semibold hover:bg-teal-600 transition-colors disabled:opacity-40 disabled:cursor-not-allowed flex items-center justify-center gap-2"
             >
               {variantScoring ? <><Spinner /> Scoring {pendingVariants.length} variants...</> : 'Run Comparison'}
-            <
-          {variantError && <p role="alert" className="mt-2 text-xs text-red-600">Comparison not completed: {variantError}. No substitute scores were generated.</p>}/button>
+            </button>
+            {variantError && <p role="alert" className="mt-2 text-xs text-red-600">Comparison not completed: {variantError}. No substitute scores were generated.</p>}
 
             {variantScoring && (
               <div className="mt-2">

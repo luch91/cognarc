@@ -23,7 +23,8 @@ function validScore(value: unknown): boolean {
 export default async function handler(req: VercelRequest, res: VercelResponse): Promise<void> {
   res.setHeader('Cache-Control', 'no-store')
   if (req.method !== 'POST') { res.status(405).json({ error: 'Method not allowed' }); return }
-  if (!process.env.COGNARC_PROXY_SECRET || req.headers['x-cognarc-key'] !== process.env.COGNARC_PROXY_SECRET) { res.status(401).json({ error: 'Unauthorized' }); return }\n  if (!SERVICE_URL || !SERVICE_SECRET) { res.status(503).json({ error: 'Canonical scoring service is not configured' }); return }
+  if (!process.env.COGNARC_PROXY_SECRET || req.headers['x-cognarc-key'] !== process.env.COGNARC_PROXY_SECRET) { res.status(401).json({ error: 'Unauthorized' }); return }
+  if (!SERVICE_URL || !SERVICE_SECRET) { res.status(503).json({ error: 'Canonical scoring service is not configured' }); return }
   const body = req.body as Record<string, unknown> | undefined
   if (!body || typeof body.content !== 'string' || !body.content.trim() ||
       !['text','image','audio','video'].includes(String(body.stimulus_type)) ||
