@@ -22,6 +22,20 @@ export class FallbackScoringEngine extends ScoringEngine {
       }
       return result
     } catch (error) {
+      // Auth, quota and bad-request responses must remain visible as failures.
+      // Only inference outages, timeouts, network faults and invalid model
+      // payloads are eligible for mathematical fallback.
+      const message = error instanceof Error ? error.message : ''
+      const explicitCode = error && typeof error === 'object' && 'code' in error
+        ? String((error as {code: unknown}).code) : ''
+      const status = /returned (\d{3})/.exec(message)?.[1]
+      if (/GCP_AUTH_ERROR|MISSING_ENV/.test(explicitCode) ||
+          (status && Number(status) >= 400 && Number(status) < 500)) throw error
+      const eligible = /TRIBE_TIMEOUT|TRIBE_INVALID_OUTPUT/.test(explicitCode) ||
+        (status !== undefined && Number(status) >= 500) ||
+        /timeout|abort|stub|invalid.output|fetch failed|network|ECONN|ENOTFOUND/i.test(message) ||
+        error instanceof TypeError
+      if (!eligible) throw error
       // No synthetic image, audio or video scoring via text heuristics.
       if (request.stimulus_type !== 'text' || typeof request.content !== 'string') throw error
       const result = await this.fallback.score(request)

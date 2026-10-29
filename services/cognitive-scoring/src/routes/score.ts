@@ -19,6 +19,17 @@ export function createScoreRouter(engine: ScoringEngine): Router {
   const router = Router()
 
   router.post('/', async (req: Request, res: Response): Promise<void> => {
+    const secret = process.env.COGNARC_SCORING_SERVICE_SECRET
+    if (secret && req.header('x-cognarc-key') !== secret) {
+      res.status(401).json({ error: 'Unauthorized' })
+      return
+    }
+    // Restrict anonymous scoring in deployed environments. Other internal
+    // services must send the same configured service secret.
+    if (process.env.NODE_ENV === 'production' && !secret) {
+      res.status(503).json({ error: 'Scoring service authentication not configured' })
+      return
+    }
     const parsed = ScoreRequestSchema.safeParse(req.body)
     if (!parsed.success) {
       res.status(400).json({ error: 'Invalid request', details: parsed.error.flatten() })

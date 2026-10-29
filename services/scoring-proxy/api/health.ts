@@ -1,18 +1,17 @@
 import type { VercelRequest, VercelResponse } from '@vercel/node'
-
-const PROXY_SECRET = process.env.COGNARC_PROXY_SECRET ?? ''
-
-export default function handler(req: VercelRequest, res: VercelResponse) {
-  res.setHeader('Access-Control-Allow-Origin', 'https://cognarc-dashboard.vercel.app')
-  res.setHeader('Access-Control-Allow-Methods', 'GET, OPTIONS')
-  res.setHeader('Access-Control-Allow-Headers', 'Content-Type, X-CognArc-Key')
-
-  if (req.method === 'OPTIONS') { res.status(204).end(); return }
-
-  if (PROXY_SECRET && req.headers['x-cognarc-key'] !== PROXY_SECRET) {
-    res.status(401).json({ ok: false, error: 'Unauthorized' })
-    return
+const SERVICE_URL = process.env.COGNARC_SCORING_URL ?? ''
+export default async function handler(req: VercelRequest, res: VercelResponse): Promise<void> {
+  res.setHeader('Cache-Control', 'no-store')
+  if (req.method !== 'GET') { res.status(405).json({ ok: false, error: 'Method not allowed' }); return }
+  if (!process.env.COGNARC_PROXY_SECRET || req.headers['x-cognarc-key'] !== process.env.COGNARC_PROXY_SECRET) { res.status(401).json({ ok: false, error: 'Unauthorized' }); return }\n  if (!SERVICE_URL) { res.status(503).json({ ok: false, error: 'Canonical scoring service is not configured' }); return }
+  try {
+    const upstream = await fetch(SERVICE_URL.replace(/\/$/, '') + '/health', { signal: AbortSignal.timeout(5_000) })
+    const payload: unknown = upstream.ok ? await upstream.json() : null
+    if (!upstream.ok || !payload || typeof payload !== 'object' || (payload as {status?:string}).status !== 'ok') {
+      res.status(503).json({ ok: false, error: 'Canonical scoring service unhealthy' }); return
+    }
+    res.status(200).json({ ok: true, service: 'cognitive-scoring', engine: (payload as {engine?:string}).engine ?? 'unknown' })
+  } catch {
+    res.status(503).json({ ok: false, error: 'Canonical scoring service unreachable' })
   }
-
-  res.status(200).json({ ok: true, service: 'scoring-proxy' })
 }

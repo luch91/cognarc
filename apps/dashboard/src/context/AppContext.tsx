@@ -5,7 +5,7 @@ import {
 import { supabase } from '../api/supabaseClient.js'
 import type { AgentAction, AuditEntry, ActGatedItem, ConnectorStatus, CreativeAsset, HealthPoint, VideoAnalysisResult } from '../api/types.js'
 import type { LiveScoreResult, ScoringMode, ScoringProgress } from '../api/scoringApi.js'
-import { scoreTextStream, scoreTextRemote } from '../api/scoringApi.js'
+import { scoreTextStream } from '../api/scoringApi.js'
 
 // ── Manipulation feed entry ──────────────────────────────────────────────────
 export interface ManipulationFeedEntry {
@@ -276,18 +276,12 @@ export function AppProvider({ children }: { children: ReactNode }) {
       try {
         const res = await scoreTextStream(text, (p) => setLiveScoreProgress(p), mode)
         recordLiveScore(res, text)
-        setLiveScoreProgress(null)
-      } catch {
-        try {
-          setLiveScoreProgress({ phase: 'Streaming unavailable — falling back…', percent: 10 })
-          const res = await scoreTextRemote(text, mode)
-          recordLiveScore(res, text)
-          setLiveScoreProgress(null)
-        } catch (err) {
-          setLiveScoreError(err instanceof Error ? err.message : 'Unknown error')
-          setLiveScoreProgress(null)
-        }
+      } catch (err) {
+        // A stream may have already started expensive inference. Automatic
+        // retries can launch duplicate jobs; let the user retry explicitly.
+        setLiveScoreError(err instanceof Error ? err.message : 'Scoring unavailable')
       } finally {
+        setLiveScoreProgress(null)
         setLiveScoreLoading(false)
       }
     })()
@@ -313,7 +307,14 @@ export function AppProvider({ children }: { children: ReactNode }) {
     if (result.manipulation_risk > t.manipulationRiskMax) breaches.push(`manipulation risk ${result.manipulation_risk}`)
     if (result.comprehension_confidence < t.comprehensionConfidenceMin) breaches.push(`comprehension ${result.comprehension_confidence}`)
 
-    if (breaches.length > 0) {
+    if (!result.scoring_provenance.policy_eligible) {
+      addAgentFeedEntry({
+        action_type: 'EVALUATION_FOR_REVIEW',
+        zone: 'OBSERVE',
+        status: 'executed',
+        description: `Advisory only: ${result.scoring_provenance.engine} (${result.model_version}) is not calibrated for automated thresholds. Human review required.`,
+      })
+    } else if (breaches.length > 0) {
       addAgentFeedEntry({
         action_type: 'THRESHOLD_BREACH',
         zone: 'RECOMMEND',

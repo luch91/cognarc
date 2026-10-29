@@ -1,6 +1,7 @@
 import request from 'supertest'
 import express from 'express'
 import { MockScoringEngine } from '../engines/MockScoringEngine.js'
+import { MathematicalScoringEngine } from '../engines/MathematicalScoringEngine.js'
 import { createScoreRouter } from '../routes/score.js'
 
 const app = express()
@@ -47,5 +48,26 @@ describe('POST /score', () => {
     }
     const elapsed = Date.now() - start
     expect(elapsed / 20).toBeLessThan(600)
+  })
+})
+
+describe('canonical CME scoring contract', () => {
+  const app = express()
+  app.use(express.json())
+  app.use('/score', createScoreRouter(new MathematicalScoringEngine()))
+  test('returns a validated provenance-rich text score', async () => {
+    const res = await request(app).post('/score').send({
+      stimulus_type: 'text', content: 'Save the draft and review it.', workspace_id: 'ws-test',
+    })
+    expect(res.status).toBe(200)
+    expect(res.body.scoring_provenance.engine).toBe('mathematical')
+    expect(res.body.scoring_provenance.policy_eligible).toBe(false)
+    expect(res.body.top_brain_regions).toEqual([])
+  })
+  test('does not produce synthetic non-text scores', async () => {
+    const res = await request(app).post('/score').send({
+      stimulus_type: 'image', content: 'base64 bytes', workspace_id: 'ws-test',
+    })
+    expect(res.status).toBe(422)
   })
 })

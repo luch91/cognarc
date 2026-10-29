@@ -2,9 +2,9 @@
   "buildCommand": "turbo run build --filter=@cognarc/dashboard...",
   "outputDirectory": "apps/dashboard/dist",
   "functions": {
-    "api/score.ts": {
-      "maxDuration": 300
-    }
+    "api/score.ts": { "maxDuration": 120 },
+    "api/score-stream.ts": { "maxDuration": 120 },
+    "api/health.ts": { "maxDuration": 10 }
   },
   "headers": [
     {

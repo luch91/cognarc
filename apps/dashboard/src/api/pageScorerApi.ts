@@ -1,5 +1,7 @@
 import type { ExtractResponse, ContentSection } from './urlExtractorApi'
 import type { CognitivRisk } from './types.js'
+import { scoreText } from './scoringApi.js'
+import type { ScoringProvenance } from '@cognarc/types'
 
 export interface SectionScores {
   cognitiveLoad: number
@@ -11,6 +13,7 @@ export interface SectionScores {
 
 export interface ScoredSection extends ContentSection {
   scores: SectionScores | null
+  scoring_provenance?: ScoringProvenance
 }
 
 export interface PageScoringResult {
@@ -20,6 +23,7 @@ export interface PageScoringResult {
   scoredSections: ScoredSection[]
   worstSection: ScoredSection | null
   warning: string | null
+  scoring_provenance: ScoringProvenance
 }
 
 const WEIGHTS: Record<string, number> = {
@@ -36,17 +40,7 @@ export async function scorePage(
         return { ...section, scores: null }
       }
       try {
-        const res = await fetch('/api/score', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            stimulus_type: 'text',
-            content: section.text,
-            workspace_id: workspaceId,
-            options: { manipulation_check: true },
-          }),
-        })
-        const data = await res.json()
+        const data = await scoreText(section.text, workspaceId)
         return {
           ...section,
           scores: {
@@ -56,6 +50,7 @@ export async function scorePage(
             manipulationRisk: data.manipulation_risk,
             cognitiveRisk: data.cognitive_risk,
           },
+          scoring_provenance: data.scoring_provenance,
         }
       } catch {
         return { ...section, scores: null }
@@ -63,6 +58,15 @@ export async function scorePage(
     })
   )
 
+  const scorableSections = scoredSections.filter(section => section.scores !== null)
+  if (!scorableSections.length) {
+    throw new Error('No page sections were scored. Evaluation is unavailable, not a neutral score.')
+  }
+  const provenance = scorableSections[0]!.scoring_provenance!
+  if (scorableSections.some(section => section.scoring_provenance?.engine !== provenance.engine ||
+      section.scoring_provenance?.calibration_status !== provenance.calibration_status)) {
+    throw new Error('Page results contain incompatible scoring engines. Retry as a single evaluation.')
+  }
   let totalWeight = 0
   let sumLoad = 0, sumComp = 0, sumTrust = 0, sumManip = 0
 
@@ -86,10 +90,7 @@ export async function scorePage(
       : (sumManip / totalWeight > 40 || sumLoad / totalWeight > 55)
         ? 'MEDIUM'
         : 'LOW',
-  } : {
-    cognitiveLoad: 50, comprehensionConfidence: 50,
-    trustCoherence: 50, manipulationRisk: 50, cognitiveRisk: 'MEDIUM',
-  }
+  } : (() => { throw new Error('No validated page scores are available') })()
 
   const scoredOnly = scoredSections.filter(s => s.scores !== null)
   const worstSection = scoredOnly.length > 0
@@ -106,6 +107,8 @@ export async function scorePage(
     overallScores,
     scoredSections,
     worstSection,
-    warning: extraction.warning,
+    warning: scoredSections.some(section => section.scoreThis && !section.scores)
+      ? [extraction.warning, 'Some page sections failed scoring and were excluded.'].filter(Boolean).join(' ') : extraction.warning,
+    scoring_provenance: provenance,
   }
 }

@@ -68,6 +68,30 @@ describe('CME mathematical scoring', () => {
     expect(result.scoring_provenance?.neural_evidence).toBe(false)
   })
 
+  test('does not turn provider authentication errors into a fallback score', async () => {
+    class Unauthorised extends ScoringEngine {
+      readonly engineName = 'tribe-gcp'
+      async score(_request: CognitiveScoreRequest): Promise<CognitiveScoreResponse> {
+        throw new Error('TRIBE GCP inference returned 401: Unauthorized')
+      }
+    }
+    await expect(new FallbackScoringEngine(new Unauthorised()).score({
+      ...base, content: 'Save changes.',
+    })).rejects.toThrow('401')
+  })
+
+  test('does not hide other unexpected bugs with fallback', async () => {
+    class Broken extends ScoringEngine {
+      readonly engineName = 'tribe-gcp'
+      async score(_request: CognitiveScoreRequest): Promise<CognitiveScoreResponse> {
+        throw new Error('Unexpected scoring invariant violation')
+      }
+    }
+    await expect(new FallbackScoringEngine(new Broken()).score({
+      ...base, content: 'Save changes.',
+    })).rejects.toThrow('Unexpected')
+  })
+
   test('never substitutes math text scoring for image inference', async () => {
     class Down extends ScoringEngine {
       readonly engineName = 'tribe-gcp'
