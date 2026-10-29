@@ -1,5 +1,6 @@
 import type { CognitiveScoreResponse, ScoringProvenance } from '@cognarc/types'
 import type { CognitivRisk } from './types.js'
+import { getWorkspaceRequestAuth } from './workspaceSession.js'
 
 export interface LiveScoreResult extends CognitiveScoreResponse {
   cognitive_risk: CognitivRisk
@@ -64,19 +65,21 @@ function postBody(text: string, mode: ScoringMode, workspaceId: string) {
   return JSON.stringify({ stimulus_type: 'text', content: text, workspace_id: workspaceId, mode })
 }
 
-export async function scoreText(text: string, workspaceId = 'ws-1'): Promise<LiveScoreResult> {
+export async function scoreText(text: string, _workspaceId?: string): Promise<LiveScoreResult> {
+  const auth = await getWorkspaceRequestAuth()
   const res = await fetch('/api/score', {
-    method: 'POST', headers: { 'Content-Type': 'application/json' },
-    body: postBody(text, 'accurate', workspaceId),
+    method: 'POST', headers: { 'Content-Type': 'application/json', Authorization: auth.authorization },
+    body: postBody(text, 'accurate', auth.workspaceId),
     signal: AbortSignal.timeout(110_000),
   })
   return readResponse(res)
 }
 
 export async function scoreTextRemote(text: string, mode: ScoringMode = 'accurate'): Promise<LiveScoreResult> {
+  const auth = await getWorkspaceRequestAuth()
   const res = await fetch('/api/score', {
     method: 'POST', headers: { 'Content-Type': 'application/json' },
-    body: postBody(text, mode, 'ws-1'),
+    body: postBody(text, mode, auth.workspaceId),
     signal: AbortSignal.timeout(110_000),
   })
   return readResponse(res)
@@ -89,6 +92,7 @@ export async function scoreTextStream(
   onProgress: (progress: ScoringProgress) => void,
   mode: ScoringMode = 'accurate',
 ): Promise<LiveScoreResult> {
+  const auth = await getWorkspaceRequestAuth()
   const res = await fetch('/api/score-stream', {
     method: 'POST', headers: { 'Content-Type': 'application/json' },
     body: postBody(text, mode, 'ws-1'),

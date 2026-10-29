@@ -5,6 +5,8 @@ on:
       - 'services/cognitive-scoring/**'
       - 'services/guardrail-engine/**'
       - 'apps/dashboard/**'
+      - 'infrastructure/supabase/gate3-*.sql'
+      - 'docs/gate3-auth-workspaces-approvals.md'
       - 'services/scoring-proxy/**'
       - 'api/**'
       - 'docs/gate1-cme-cloudflare-transport.md'
@@ -15,6 +17,7 @@ on:
       - 'feat/cme-mathematical-fallback'
       - 'feat/gate1-admin-cme-cloudflare-ready'
       - 'feat/gate2-admin-operational-integrity'
+      - 'feat/gate3-auth-workspaces-audit'
     paths:
       - 'services/cognitive-scoring/**'
       - 'services/guardrail-engine/**'
@@ -41,6 +44,7 @@ jobs:
       - run: pnpm --filter @cognarc/cognitive-scoring typecheck
       - run: pnpm --filter @cognarc/guardrail-engine typecheck
       - run: pnpm --filter @cognarc/dashboard typecheck
+      - run: pnpm --filter @cognarc/dashboard build
       - run: pnpm --filter @cognarc/scoring-proxy exec tsc --noEmit
       - run: pnpm --filter @cognarc/dashboard exec jest --runInBand
       - run: pnpm --filter @cognarc/cognitive-scoring exec jest --runInBand

@@ -1,3 +1,10 @@
+jest.mock('../src/api/workspaceSession.js', () => ({
+  getWorkspaceRequestAuth: async () => ({
+    workspaceId: '00000000-0000-4000-8000-000000000001',
+    authorization: 'Bearer unit-test-session',
+  }),
+}))
+
 import { parseScoreResult, scoreTextStream } from '../src/api/scoringApi.js'
 
 const score = {

@@ -1,9 +1,10 @@
 export type { RewriteRequest, RewriteAlternative, RewriteResponse } from '@cognarc/types'
 import type { RewriteRequest, RewriteResponse } from '@cognarc/types'
+import { getWorkspaceRequestAuth } from './workspaceSession.js'
 
-const REWRITE_URL = import.meta.env.VITE_COGNITIVE_REWRITE_URL ?? ''
 
 export async function rewrite(request: RewriteRequest): Promise<RewriteResponse> {
+  const auth = await getWorkspaceRequestAuth()
   const payload = {
     original_text: request.originalText,
     copy_type: request.copyType,
@@ -25,13 +26,13 @@ export async function rewrite(request: RewriteRequest): Promise<RewriteResponse>
     },
     brand_voice_notes: request.brandVoiceNotes,
     max_length: request.maxLength,
-    workspace_id: request.workspaceId,
+    workspace_id: auth.workspaceId,
   }
 
-  const endpoint = REWRITE_URL ? `${REWRITE_URL}/rewrite` : '/api/rewrite'
+  const endpoint = '/api/rewrite' // Never send credentials to unverified cross-origin rewrite endpoints.
   const res = await fetch(endpoint, {
     method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
+    headers: { 'Content-Type': 'application/json', Authorization: auth.authorization },
     body: JSON.stringify(payload),
   })
 

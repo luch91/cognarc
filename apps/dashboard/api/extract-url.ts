@@ -110,6 +110,15 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
   if (req.method !== 'POST') { res.status(405).json({ error: 'Method not allowed' }); return }
 
   const body = req.body as Record<string, unknown> | undefined
+  // URL extraction is available only for operator-allowlisted public hosts.
+  // This prevents users of the authenticated admin from probing arbitrary
+  // internal endpoints. The allowlist is an exact hostname match.
+  const allowedHosts = (process.env.COGNARC_URL_ALLOWED_HOSTS ?? '')
+    .split(',').map(host => host.trim().toLowerCase()).filter(Boolean)
+  if (allowedHosts.length === 0) {
+    res.status(503).json({ detail: 'URL extraction is disabled until a safe host allowlist is configured' })
+    return
+  }
   const url = body?.url as string | undefined
   if (!url || (!url.startsWith('http://') && !url.startsWith('https://'))) {
     res.status(400).json({ detail: 'Missing or invalid url' })
@@ -117,6 +126,12 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
   }
 
   try {
+    const inputUrl = new URL(url)
+    if (!['http:', 'https:'].includes(inputUrl.protocol) || inputUrl.username || inputUrl.password ||
+        !allowedHosts.includes(inputUrl.hostname.toLowerCase()) || inputUrl.port) {
+      res.status(403).json({ detail: 'This URL host is not authorised for extraction' })
+      return
+    }
     const start = Date.now()
     const response = await fetch(url, {
       headers: {
@@ -124,7 +139,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         'Accept': 'text/html,application/xhtml+xml',
       },
       signal: AbortSignal.timeout(15_000),
-      redirect: 'follow',
+      redirect: 'error',
     })
 
     if (!response.ok) {
@@ -132,7 +147,10 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       return
     }
 
+    const length = Number(response.headers.get('content-length') ?? '0')
+    if (!Number.isFinite(length) || length > 2_000_000) { res.status(413).json({ detail: 'Page too large' }); return }
     const html = await response.text()
+    if (html.length > 2_000_000) { res.status(413).json({ detail: 'Page too large' }); return }
     const { pageTitle, metaDescription, sections } = extractTextFromHtml(html, url)
     const totalWordCount = sections.reduce((sum, s) => sum + s.word_count, 0)
 
