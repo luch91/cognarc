@@ -12,7 +12,13 @@ app.use('/score', createScoreRouter(engine))
 app.use('/ab-compare', createABRouter(engine))
 
 app.get('/health', (_req, res) => {
-  res.json({ status: 'ok', engine: engine.engineName })
+  // A production instance without gateway authentication must not advertise
+  // readiness while its actual scoring endpoint refuses requests.
+  const ready = env.NODE_ENV !== 'production' || Boolean(process.env.COGNARC_SCORING_SERVICE_SECRET)
+  res.status(ready ? 200 : 503).json({
+    status: ready ? 'ok' : 'unavailable',
+    engine: engine.engineName,
+  })
 })
 
 app.listen(env.PORT, () => {
