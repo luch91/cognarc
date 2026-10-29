@@ -1,55 +1,13 @@
 import { useRef, useState } from 'react'
-import { useQuery } from '@tanstack/react-query'
-import {
-  ResponsiveContainer, LineChart, Line, AreaChart, Area, XAxis, YAxis, Tooltip, Legend, ReferenceLine,
-} from 'recharts'
-import { fetchTrustDrift } from '../api/mock.js'
-import { analyzeVideo, makeFallbackVideoAnalysis } from '../api/videoAnalysisApi.js'
 import { scoreTextRemote } from '../api/scoringApi.js'
-import { supabase } from '../api/supabaseClient.js'
 import { Card } from '../components/Card.js'
-import { RiskBadge } from '../components/RiskBadge.js'
 import { Spinner } from '../components/Spinner.js'
 import { MessageClarityScorer } from '../components/MessageClarityScorer.js'
 import { UrlAnalyser } from '../components/UrlAnalyser.js'
-import { VideoReport } from '../components/VideoReport.js'
 import { CognitiveScoreCard } from '../components/CognitiveScoreCard.js'
 import { useAppContext } from '../context/AppContext.js'
 import type { CreativeAsset } from '../api/types.js'
 import type { LiveScoreResult } from '../api/scoringApi.js'
-
-const FUNNEL_STEPS = [
-  { step: 'Ad Creative',       load: 34, trust: 81, risk: 'LOW'    },
-  { step: 'Landing Page',      load: 52, trust: 74, risk: 'MEDIUM' },
-  { step: 'Sign-Up Flow',      load: 71, trust: 58, risk: 'MEDIUM' },
-  { step: 'Onboarding',        load: 83, trust: 41, risk: 'HIGH'   },
-  { step: 'First Value Moment',load: 44, trust: 69, risk: 'LOW'    },
-]
-
-const RISK_BADGE: Record<string, string> = {
-  LOW:    'bg-green-100 text-green-700',
-  MEDIUM: 'bg-yellow-100 text-yellow-700',
-  HIGH:   'bg-red-100 text-red-700',
-}
-
-const TRUST_DRIFT_DATA = [
-  { date: '5/5',  trust: 72 },
-  { date: '5/6',  trust: 74 },
-  { date: '5/7',  trust: 71 },
-  { date: '5/8',  trust: 69 },
-  { date: '5/9',  trust: 68 },
-  { date: '5/10', trust: 65 },
-  { date: '5/11', trust: 63 },
-  { date: '5/12', trust: 61 },
-  { date: '5/13', trust: 64 },
-  { date: '5/14', trust: 62 },
-  { date: '5/15', trust: 60 },
-  { date: '5/16', trust: 58 },
-  { date: '5/17', trust: 57 },
-  { date: '5/18', trust: 55 },
-]
-
-const TRUST_DRIFT_X_TICKS = ['5/5', '5/8', '5/11', '5/14', '5/18']
 
 function isVideo(name: string) {
   return /\.(mp4|mov|webm)$/i.test(name)
@@ -59,68 +17,23 @@ function isImage(name: string) {
   return /\.(png|jpg|jpeg|webp|gif)$/i.test(name)
 }
 
-const MANIPULATION_CATEGORIES = [
-  { key: 'false_urgency', label: 'False Urgency' },
-  { key: 'authority_mimicry', label: 'Authority Mimicry' },
-  { key: 'sycophantic_drift', label: 'Sycophantic Drift' },
-  { key: 'ambiguity_exploitation', label: 'Ambiguity Exploitation' },
-  { key: 'social_proof_fabrication', label: 'Social Proof Fabrication' },
-  { key: 'obfuscation', label: 'Obfuscation' },
-] as const
-
 function TextReport({ item }: { item: CreativeAsset }) {
-  const scores = {
-    cognitiveLoad: item.cognitive_load ?? 50,
-    comprehensionConfidence: 100 - (item.cognitive_load ?? 50),
-    trustCoherence: item.trust ?? 60,
-    manipulationRisk: item.cognitive_load && item.cognitive_load > 60 ? 61 : 25,
-  }
-  const taxonomy = scores.manipulationRisk > 40
-    ? { falseUrgency: 65, authorityMimicry: 45, obfuscation: 30 }
-    : undefined
+  const result = item.scoreResult
+  if (!result?.scoring_provenance) return <p role="alert">No verified text evaluation exists.</p>
   return (
-    <div data-testid="queue-item-report" className="border-t border-gray-100 bg-gray-50 px-4 py-4 space-y-4">
-      <h4 className="text-sm font-semibold text-gray-700">Text Cognitive Analysis</h4>
-      <CognitiveScoreCard scores={scores} {...(taxonomy ? { taxonomy } : {})} defaultMode="manager" showToggle={false} />
-      <div className="bg-white border border-gray-100 rounded-lg p-3 max-h-40 overflow-y-auto">
-        <pre className="text-xs font-mono text-gray-600 whitespace-pre-wrap">{item.name}</pre>
-      </div>
-      {taxonomy && (
-        <div>
-          <h5 className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-2">Manipulation Taxonomy</h5>
-          <div className="grid grid-cols-3 gap-2">
-            {MANIPULATION_CATEGORIES.map(({ key, label }) => {
-              const val = (taxonomy as Record<string, number | undefined>)[key.replace(/_([a-z])/g, (_, c: string) => c.toUpperCase())] ?? 0
-              return (
-                <div key={key} className="bg-white border border-gray-100 rounded p-2 text-center">
-                  <p className="text-[10px] text-gray-400">{label}</p>
-                  <p className={`text-sm font-bold ${val > 40 ? 'text-red-500' : 'text-gray-600'}`}>{val}</p>
-                </div>
-              )
-            })}
-          </div>
-        </div>
-      )}
-    </div>
-  )
-}
-
-function ImageReport({ item }: { item: CreativeAsset }) {
-  const scores = {
-    cognitiveLoad: item.cognitive_load ?? 50,
-    comprehensionConfidence: 100 - (item.cognitive_load ?? 50),
-    trustCoherence: item.trust ?? 60,
-    manipulationRisk: item.cognitive_load && item.cognitive_load > 60 ? 55 : 20,
-  }
-  const loadLevel = scores.cognitiveLoad > 65 ? 'high' : scores.cognitiveLoad > 45 ? 'moderate' : 'low'
-  const advice = loadLevel === 'high' ? 'simplifying the composition' : loadLevel === 'moderate' ? 'reducing text overlay' : 'maintaining this approach'
-  return (
-    <div data-testid="queue-item-report" className="border-t border-gray-100 bg-gray-50 px-4 py-4 space-y-4">
-      <h4 className="text-sm font-semibold text-gray-700">Image Cognitive Analysis</h4>
-      <CognitiveScoreCard scores={scores} defaultMode="manager" showToggle={false} />
-      <div className="bg-white border border-gray-100 rounded-lg p-3 text-sm text-gray-600">
-        Cognitive load is <strong>{loadLevel}</strong> — consider {advice}.
-      </div>
+    <div data-testid="queue-item-report" className="border-t border-gray-100 bg-gray-50 p-4 space-y-2">
+      <h4 className="text-sm font-semibold text-gray-700">Text evaluation (advisory)</h4>
+      <p className="text-xs text-amber-800">
+        Engine: {result.scoring_provenance.engine} ({result.model_version}).
+        {result.scoring_provenance.fallback_used ? ' CME fallback: ' + result.scoring_provenance.fallback_reason : ''}
+        Uncalibrated. No automatic policy actions.
+      </p>
+      <CognitiveScoreCard scores={{
+        cognitiveLoad: result.cognitive_load,
+        comprehensionConfidence: result.comprehension_confidence,
+        trustCoherence: result.trust_coherence,
+        manipulationRisk: result.manipulation_risk,
+      }} defaultMode="manager" showToggle={false} />
     </div>
   )
 }
@@ -160,7 +73,6 @@ function nextLabel(variants: PendingVariant[]): string {
 }
 
 export function GrowthView() {
-  const { data: trustDrift, isLoading: tdLoading } = useQuery({ queryKey: ['trust-drift'], queryFn: fetchTrustDrift })
   const fileInputRef = useRef<HTMLInputElement>(null)
   const variantImageRef = useRef<HTMLInputElement>(null)
   const [openReportId, setOpenReportId] = useState<string | null>(null)
@@ -178,18 +90,7 @@ export function GrowthView() {
   const [variantError, setVariantError] = useState<string | null>(null)
   const [lastComparisonDate, setLastComparisonDate] = useState<string | null>(null)
 
-  const {
-    evaluationQueue: queue, addToEvaluationQueue, updateEvaluationItem,
-    addAgentFeedEntry, addManipulationFeedEntry, addActGatedItem, addAuditEntry,
-  } = useAppContext()
-
-  const spring = trustDrift?.filter((d) => d.campaign === 'Spring Launch') ?? []
-  const retention = trustDrift?.filter((d) => d.campaign === 'Retention Drive') ?? []
-  const chartData = spring.map((s, i) => ({
-    date: s.date,
-    'Spring Launch': s.trust,
-    'Retention Drive': retention[i]?.trust,
-  }))
+  const { evaluationQueue: queue, addToEvaluationQueue, updateEvaluationItem } = useAppContext()
 
   async function runVariantComparison() {
     setVariantScoring(true)
@@ -230,200 +131,34 @@ export function GrowthView() {
     }
   }
 
-  async function runVideoAnalysis(id: string, file: File) {
-    let analysis
-    let demoMode = false
-    try {
-      analysis = await analyzeVideo(file.name, file.size, 30, 'ws-1')
-    } catch {
-      analysis = makeFallbackVideoAnalysis(file.name)
-      demoMode = true
-    }
-
-    updateEvaluationItem(id, {
-      status: 'complete',
-      cognitive_load: Math.round(analysis.overall_cognitive_load),
-      trust: Math.round(analysis.overall_trust_coherence),
-      risk: analysis.cognitive_risk,
-      videoAnalysis: analysis,
-      videoAnalysisDemoMode: demoMode,
-    })
-
-    // C07: persist video report to Supabase evaluation_queue
-    if (supabase) {
-      supabase
-        .from('evaluation_queue')
-        .update({
-          video_report: analysis,
-          status: 'complete',
-          cognitive_load: Math.round(analysis.overall_cognitive_load),
-          manipulation_risk: Math.round(analysis.overall_manipulation_risk),
-          trust_coherence: Math.round(analysis.overall_trust_coherence),
-        })
-        .eq('id', id)
-        .then(({ error }) => { if (error) console.error('[supabase] evaluation_queue update failed:', error) })
-    }
-
-    // B08: feed critical video findings into Safety manipulation feed + audit
-    const criticalFindings = analysis.moment_findings.filter(
-      (f) => f.severity === 'critical' || f.manipulation_risk > 70,
-    )
-    for (const f of criticalFindings) {
-      addManipulationFeedEntry({
-        category: 'false_urgency',
-        score: Math.round(f.manipulation_risk),
-        time: 'just now',
-        excerpt: `[${file.name} at ${f.timestamp_start}s] ${(f.voiceover_segment ?? f.finding).slice(0, 60)}…`,
-      })
-      addAuditEntry({
-        action_type: 'VIDEO_MANIPULATION_DETECTED',
-        zone: 'OBSERVE',
-        outcome: 'flagged',
-        authorising_human_or_policy: 'policy:v1.2',
-        policy_rule: 'rule:v1.2',
-      })
-
-      // C08: persist audit entry to Supabase
-      if (supabase) {
-        supabase.from('audit_log').insert({
-          workspace_id: 'ws-1',
-          action_type: 'VIDEO_MANIPULATION_DETECTED',
-          oversight_zone: 'OBSERVE',
-          outcome: 'flagged',
-          authorising_human_or_policy: 'policy:v1.2',
-          policy_rule_applied: 'rule:v1.2',
-          metadata: {
-            filename: file.name,
-            timestamp: f.timestamp_start,
-            category: 'false_urgency',
-            score: Math.round(f.manipulation_risk),
-            excerpt: (f.voiceover_segment ?? f.finding).slice(0, 80),
-            source: 'video_analysis',
-          },
-        }).then(({ error }) => { if (error) console.error('[supabase] audit_log insert failed:', error) })
-      }
-    }
-
-    // B08: overall manipulation flag → agent feed
-    if (analysis.overall_manipulation_risk > 40) {
-      addAgentFeedEntry({
-        action_type: 'CREATIVE_EVAL',
-        zone: 'RECOMMEND',
-        description: `Video manipulation risk ${Math.round(analysis.overall_manipulation_risk)}/100 detected in ${file.name} — review recommended.`,
-        status: 'executed',
-      })
-    }
-
-    // C08: overall manipulation > 70 → Act-Gated item (AppContext + Supabase)
-    if (analysis.overall_manipulation_risk > 70) {
-      addActGatedItem({
-        action_type: 'CONTENT_FLAG',
-        description: `${file.name} flagged for overall manipulation risk ${Math.round(analysis.overall_manipulation_risk)}/100`,
-        proposed_action: 'Remove or remediate high-manipulation video content before publishing.',
-        alternatives: [
-          'Rewrite voiceover urgency language and resubmit',
-          'Request human review only',
-          'Auto-remediate by muting identified segments',
-        ],
-        evidence_summary: `Video "${file.name}" scored ${Math.round(analysis.overall_manipulation_risk)}/100 on manipulation risk during automated video analysis.`,
-        cognitive_scores: {
-          cognitive_load: Math.round(analysis.overall_cognitive_load),
-          comprehension: 60,
-          trust: Math.round(analysis.overall_trust_coherence),
-          manipulation_risk: Math.round(analysis.overall_manipulation_risk),
-        },
-        status: 'pending',
-      })
-
-      if (supabase) {
-        supabase.from('act_gated_queue').insert({
-          workspace_id: 'ws-1',
-          title: `${file.name} — overall manipulation risk ${Math.round(analysis.overall_manipulation_risk)}/100`,
-          type: 'CONTENT_FLAG',
-          status: 'pending',
-          decision_by: new Date(Date.now() + 2 * 24 * 60 * 60 * 1000).toISOString(),
-          package_data: {
-            filename: file.name,
-            overall_scores: {
-              cognitive_load: analysis.overall_cognitive_load,
-              manipulation_risk: analysis.overall_manipulation_risk,
-              trust_coherence: analysis.overall_trust_coherence,
-            },
-            critical_findings: criticalFindings.map((cf) => ({
-              timestamp: cf.timestamp_start,
-              component: cf.component,
-              manipulation_risk: cf.manipulation_risk,
-              finding: cf.finding,
-            })),
-          },
-        }).then(({ error }) => { if (error) console.error('[supabase] act_gated_queue insert failed:', error) })
-      }
-    }
-  }
-
-  function handleUpload(e: React.ChangeEvent<HTMLInputElement>) {
-    const file = e.target.files?.[0]
+  async function handleUpload(event: React.ChangeEvent<HTMLInputElement>) {
+    const file = event.target.files?.[0]
     if (!file) return
-    e.target.value = ''
-
-    const newId = `upload-${Date.now()}`
-    const newItem: CreativeAsset = {
-      id: newId,
-      name: file.name,
-      type: file.type.startsWith('image') ? 'image' : file.type.startsWith('video') ? 'video' : isVideo(file.name) ? 'video' : 'copy',
-      uploaded_at: new Date().toISOString(),
-      status: 'queued',
+    event.target.value = ''
+    const type = file.type.startsWith('image') || isImage(file.name) ? 'image'
+      : file.type.startsWith('video') || isVideo(file.name) ? 'video' : 'copy'
+    const id = 'upload-' + Date.now()
+    const item: CreativeAsset = {
+      id, name: file.name, type, uploaded_at: new Date().toISOString(),
+      status: type === 'copy' ? 'processing' : 'unsupported',
       risk: 'LOW',
+      ...(type !== 'copy' ? { error: 'Verified ' + type + ' scoring is unavailable. No analysis was run.' } : {}),
     }
-
-    addToEvaluationQueue(newItem)
-
-    setTimeout(() => {
-      updateEvaluationItem(newId, { status: 'processing' })
-    }, 2000)
-
-    if (newItem.type === 'video') {
-      // Video: call analysis service after the "processing" delay
-      setTimeout(() => {
-        void runVideoAnalysis(newId, file)
-      }, 2500)
-    } else {
-      // Non-video: existing scoring simulation
-      setTimeout(() => {
-        const manipulation = 61
-        updateEvaluationItem(newId, { status: 'complete', cognitive_load: 61, trust: 67, risk: 'MEDIUM' })
-
-        if (manipulation > 40) {
-          addAgentFeedEntry({
-            action_type: 'CREATIVE_EVAL',
-            zone: 'RECOMMEND',
-            description: `Manipulation risk ${manipulation}/100 detected in ${file.name} — review recommended.`,
-            status: 'executed',
-          })
-
-          const excerpt = file.name.length > 50
-            ? file.name.slice(0, 50) + '…'
-            : `${file.name} — Creative asset evaluated`
-          addManipulationFeedEntry({
-            category: 'false_urgency',
-            score: manipulation,
-            time: 'just now',
-            excerpt,
-          })
-
-          if (manipulation > 70) {
-            addActGatedItem({
-              action_type: 'CONTENT_FLAG',
-              description: `${file.name} flagged for manipulation risk ${manipulation}/100`,
-              proposed_action: 'Remove or remediate high-manipulation content before publishing.',
-              alternatives: ['Rewrite with lower urgency language', 'Request human review only', 'Auto-remediate urgency language'],
-              evidence_summary: `Creative asset "${file.name}" scored ${manipulation}/100 on manipulation risk during automated evaluation.`,
-              cognitive_scores: { cognitive_load: 61, comprehension: 67, trust: 55, manipulation_risk: manipulation },
-              status: 'pending',
-            })
-          }
-        }
-      }, 5000)
+    addToEvaluationQueue(item)
+    if (type !== 'copy') return
+    try {
+      const content = await file.text()
+      if (!content.trim()) throw new Error('Uploaded text is empty')
+      if (content.length > 20000) throw new Error('The text exceeds the 20,000-character evaluation limit')
+      const result = await scoreTextRemote(content)
+      updateEvaluationItem(id, {
+        status: 'complete', scoreResult: result,
+        cognitive_load: result.cognitive_load,
+        trust: result.trust_coherence, risk: result.cognitive_risk,
+      })
+    } catch (error) {
+      updateEvaluationItem(id, { status: 'failed',
+        error: error instanceof Error ? error.message : 'Text evaluation failed' })
     }
   }
 
@@ -471,7 +206,7 @@ export function GrowthView() {
                   {a.status !== 'complete' && (
                     <span className="text-xs text-gray-400">Load: — · Trust: —</span>
                   )}
-                  <RiskBadge risk={a.risk} />
+                  {a.status === 'complete' && <span className="text-xs text-amber-700">Advisory {a.risk} index</span>}
                   <span className={`text-xs px-1.5 py-0.5 rounded font-semibold ${
                     a.status === 'complete' ? 'bg-green-100 text-green-700' :
                     a.status === 'processing' ? 'bg-blue-100 text-blue-700' :
@@ -489,19 +224,9 @@ export function GrowthView() {
                   )}
                 </div>
               </div>
-              {/* Inline report panel — all file types */}
-              {openReportId === a.id && a.status === 'complete' && (
-                a.type === 'video' && a.videoAnalysis ? (
-                  <VideoReport
-                    report={a.videoAnalysis}
-                    {...(a.videoAnalysisDemoMode ? { demoMode: a.videoAnalysisDemoMode } : {})}
-                    onClose={() => setOpenReportId(null)}
-                  />
-                ) : a.type === 'image' || isImage(a.name) ? (
-                  <ImageReport item={a} />
-                ) : (
-                  <TextReport item={a} />
-                )
+              {a.error && <p role="status" className="px-4 pb-3 text-xs text-amber-800">{a.error}</p>}
+              {openReportId === a.id && a.status === 'complete' && a.type === 'copy' && (
+                <TextReport item={a} />
               )}
             </div>
           ))}
@@ -734,92 +459,12 @@ export function GrowthView() {
         )}
       </Card>
 
-      {/* Brand Trust Drift Monitor */}
-      <Card title="Brand Trust Drift Monitor">
-        <p className="text-xs text-gray-400 mb-4">Longitudinal trust coherence across evaluated campaign assets</p>
-        <ResponsiveContainer width="100%" height={200}>
-          <AreaChart data={TRUST_DRIFT_DATA} margin={{ top: 4, right: 16, bottom: 0, left: -20 }}>
-            <defs>
-              <linearGradient id="trustFill" x1="0" y1="0" x2="0" y2="1">
-                <stop offset="5%" stopColor="#14b8a6" stopOpacity={0.15} />
-                <stop offset="95%" stopColor="#14b8a6" stopOpacity={0} />
-              </linearGradient>
-            </defs>
-            <XAxis dataKey="date" tick={{ fontSize: 10 }} ticks={TRUST_DRIFT_X_TICKS} />
-            <YAxis domain={[0, 100]} tick={{ fontSize: 10 }} />
-            <Tooltip />
-            <Legend wrapperStyle={{ fontSize: 12 }} />
-            <ReferenceLine y={65} stroke="#f59e0b" strokeDasharray="4 3" label={{ value: 'Alert threshold', position: 'insideTopRight', fontSize: 10, fill: '#f59e0b' }} />
-            <Area type="monotone" dataKey="trust" name="Trust Coherence" stroke="#14b8a6" fill="url(#trustFill)" strokeWidth={2} dot={false} />
-          </AreaChart>
-        </ResponsiveContainer>
-        <div className="mt-3 flex items-center gap-1.5 text-sm text-gray-600">
-          <span>Current: <strong className="text-gray-800">55</strong></span>
-          <span className="text-gray-300">·</span>
-          <span>7-day delta: <strong className="text-gray-800">−7</strong></span>
-          <span className="text-gray-300">·</span>
-          <span>Trend: <strong className="text-red-500">↓ Declining</strong></span>
-        </div>
-        <div className="mt-3 bg-amber-50 border-l-4 border-amber-400 rounded-r-lg px-4 py-3 text-sm text-amber-800">
-          ⚠ Trust coherence has declined 17 points over 14 days. Review recent campaign assets for manipulation patterns.
-        </div>
-      </Card>
-
-      {/* Cognitive Funnel Mapper */}
-      <Card title="Cognitive Funnel Mapper">
-        <p className="text-xs text-gray-400 mb-4">Weekly cadence — last updated 5/18/2026</p>
-
-        {/* Step table */}
-        <div className="grid grid-cols-5 gap-2 mb-5">
-          {FUNNEL_STEPS.map((s, i) => (
-            <div key={s.step} className={`rounded-lg border p-2.5 text-center ${s.risk === 'HIGH' ? 'border-red-200 bg-red-50' : s.risk === 'MEDIUM' ? 'border-yellow-200 bg-yellow-50' : 'border-gray-100 bg-gray-50'}`}>
-              <div className="text-xs text-gray-400 mb-1">Step {i + 1}</div>
-              <div className="text-xs font-semibold text-gray-700 leading-tight mb-2">{s.step}</div>
-              <div className="text-xs text-gray-500 space-y-0.5">
-                <div>Load: <strong className={s.load > 70 ? 'text-danger' : 'text-gray-700'}>{s.load}</strong></div>
-                <div>Trust: <strong className="text-gray-700">{s.trust}</strong></div>
-              </div>
-              <span className={`mt-1.5 inline-block text-[10px] font-bold px-1.5 py-0.5 rounded ${RISK_BADGE[s.risk]}`}>{s.risk}</span>
-            </div>
-          ))}
-        </div>
-
-        {/* Chart */}
-        <ResponsiveContainer width="100%" height={200}>
-          <LineChart data={FUNNEL_STEPS} margin={{ top: 4, right: 16, bottom: 0, left: -20 }}>
-            <XAxis dataKey="step" tick={{ fontSize: 10 }} />
-            <YAxis domain={[0, 100]} tick={{ fontSize: 10 }} />
-            <Tooltip />
-            <Legend wrapperStyle={{ fontSize: 12 }} />
-            <ReferenceLine x="Sign-Up Flow" stroke="#ef4444" strokeDasharray="4 3" label={{ value: 'Load peak', position: 'top', fontSize: 10, fill: '#ef4444' }} />
-            <ReferenceLine x="Onboarding"   stroke="#f59e0b" strokeDasharray="4 3" label={{ value: 'Trust gap',  position: 'top', fontSize: 10, fill: '#f59e0b' }} />
-            <Line type="monotone" dataKey="load"  name="Cognitive Load"  stroke="#f59e0b" dot={true} strokeWidth={2} />
-            <Line type="monotone" dataKey="trust" name="Trust Coherence" stroke="#10b981" dot={true} strokeWidth={2} />
-          </LineChart>
-        </ResponsiveContainer>
-
-        {/* Insight callout */}
-        <div className="mt-4 bg-amber-50 border-l-4 border-amber-400 rounded-r-lg px-4 py-3 text-sm text-amber-800">
-          ⚠ Trust drops 17 points at the Onboarding step. Users are being asked to connect integrations before the product has demonstrated value.
-        </div>
-      </Card>
-
-      {/* Brand Trust Drift */}
-      <Card title="Brand Trust Drift — Campaign Comparison">
-        {tdLoading ? (
-          <div className="flex justify-center py-4"><Spinner /></div>
-        ) : (
-          <ResponsiveContainer width="100%" height={220}>
-            <LineChart data={chartData} margin={{ top: 4, right: 8, bottom: 0, left: -20 }}>
-              <XAxis dataKey="date" tick={{ fontSize: 10 }} interval={6} />
-              <YAxis domain={[40, 100]} tick={{ fontSize: 10 }} />
-              <Tooltip />
-              <Legend wrapperStyle={{ fontSize: 12 }} />
-              <Line type="monotone" dataKey="Spring Launch" stroke="#4f6ef7" dot={false} strokeWidth={2} />
-              <Line type="monotone" dataKey="Retention Drive" stroke="#f59e0b" dot={false} strokeWidth={2} />
-            </LineChart>
-          </ResponsiveContainer>
-        )}
+      <Card title="Campaign Trust Drift and Funnel Metrics">
+        <p className="text-sm text-gray-600">No verified campaign time-series or behavioral funnel dataset is connected.</p>
+        <p className="text-xs text-gray-500 mt-2">
+          Static example charts and fabricated trend insights are excluded from operational reporting.
+          Connect measured events and provenance before enabling trend analysis.
+        </p>
       </Card>
     </div>
   )

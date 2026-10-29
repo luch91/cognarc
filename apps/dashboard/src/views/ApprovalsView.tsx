@@ -50,81 +50,6 @@ function taxonomyFor(item: ActGatedItem) {
   }
 }
 
-function DecisionModal({
-  item,
-  mode,
-  onClose,
-}: {
-  item: ActGatedItem
-  mode: 'approve' | 'reject'
-  onClose: () => void
-}) {
-  const [justification, setJustification] = useState('')
-  const [saving, setSaving] = useState(false)
-  const { resolveActGatedItem } = useAppContext()
-
-  function handleConfirm() {
-    if (!justification.trim()) return
-    setSaving(true)
-    setTimeout(() => {
-      resolveActGatedItem(item.id, mode === 'approve' ? 'approved' : 'rejected')
-      onClose()
-    }, 400)
-  }
-
-  return (
-    <div
-      className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4"
-      role="dialog"
-      aria-modal="true"
-      aria-labelledby="modal-title"
-    >
-      <div className="bg-white rounded-2xl shadow-xl w-full max-w-md">
-        <div className="px-6 py-4 border-b border-gray-100 flex items-center justify-between">
-          <h2 id="modal-title" className="text-base font-semibold text-gray-800">
-            {mode === 'approve' ? 'Approve action' : 'Reject action'}
-          </h2>
-          <button onClick={onClose} className="text-gray-400 hover:text-gray-600 text-xl leading-none" aria-label="Close">×</button>
-        </div>
-        <div className="px-6 py-4 space-y-3">
-          <p className="text-sm text-gray-600">{item.description}</p>
-          <p className="text-xs text-gray-400">Proposed: <span className="text-gray-600">{item.proposed_action}</span></p>
-          <div>
-            <label htmlFor="justification" className="block text-xs font-semibold text-gray-500 mb-1">
-              Justification <span className="text-danger">*</span>
-            </label>
-            <textarea
-              id="justification"
-              value={justification}
-              onChange={(e) => setJustification(e.target.value)}
-              rows={3}
-              placeholder="Enter your justification for this decision…"
-              className="w-full text-sm border border-gray-200 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-brand-500 resize-none"
-            />
-          </div>
-        </div>
-        <div className="px-6 py-4 border-t border-gray-100 flex justify-end gap-3">
-          <button
-            onClick={onClose}
-            className="text-sm px-4 py-2 rounded-lg border border-gray-200 text-gray-600 hover:bg-gray-50 transition-colors"
-          >
-            Cancel
-          </button>
-          <button
-            onClick={handleConfirm}
-            disabled={!justification.trim() || saving}
-            className={`text-sm px-4 py-2 rounded-lg font-semibold text-white transition-colors disabled:opacity-50 ${
-              mode === 'approve' ? 'bg-success hover:bg-green-600' : 'bg-danger hover:bg-red-600'
-            }`}
-          >
-            {saving ? 'Saving…' : mode === 'approve' ? 'Approve' : 'Reject'}
-          </button>
-        </div>
-      </div>
-    </div>
-  )
-}
-
 function AlternativeRow({ index, alt }: { index: number; alt: RewriteAlternative }) {
   const [copied, setCopied] = useState(false)
   const d = alt.scoreDelta
@@ -169,7 +94,6 @@ function AlternativeRow({ index, alt }: { index: number; alt: RewriteAlternative
 
 function ActGatedCard({ item }: { item: ActGatedItem }) {
   const [expanded, setExpanded] = useState(false)
-  const [modal, setModal] = useState<'approve' | 'reject' | null>(null)
 
   // Per-item rewrite cache — survives collapse/expand cycles
   const altCache = useRef<RewriteAlternative[] | null>(null)
@@ -206,28 +130,8 @@ function ActGatedCard({ item }: { item: ActGatedItem }) {
       altCache.current = res.alternatives
       setAlternatives(res.alternatives)
     } catch {
-      // Fallback: convert existing string alternatives to RewriteAlternative shape
-      const fb: RewriteAlternative[] = item.alternatives.map((text) => ({
-        text,
-        rationale: 'Fallback alternative — live generation requires the rewrite service.',
-        confidence: 'MEDIUM' as const,
-        scores: {
-          cognitiveLoad: Math.max(20, s.cognitive_load - 15),
-          comprehensionConfidence: Math.min(90, s.comprehension + 10),
-          emotionalValence: 50,
-          trustCoherence: Math.min(80, s.trust + 8),
-          manipulationRisk: Math.max(5, s.manipulation_risk - 35),
-          cognitiveRisk: 'LOW' as const,
-        },
-        scoreDelta: {
-          cognitiveLoad: -15,
-          comprehensionConfidence: 10,
-          trustCoherence: 8,
-          manipulationRisk: -35,
-        },
-      }))
-      altCache.current = fb
-      setAlternatives(fb)
+      // Never invent alternative scores, safety confidence or deltas.
+      setAlternatives(null)
       setAltsFallback(true)
     } finally {
       setAltsLoading(false)
@@ -320,7 +224,7 @@ function ActGatedCard({ item }: { item: ActGatedItem }) {
 
             {altsFallback && (
               <p className="text-xs text-amber-600 bg-amber-50 border border-amber-100 rounded px-2 py-1 mb-2">
-                (Demo mode — live generation requires rewrite service)
+                Rewrite service unavailable. No alternative scores were generated.
               </p>
             )}
 
@@ -353,27 +257,14 @@ function ActGatedCard({ item }: { item: ActGatedItem }) {
               <p className="text-xs text-gray-400 mt-1">{item.reviewed_at ? new Date(item.reviewed_at).toLocaleString() : ''}</p>
             </div>
           ) : (
-            <div className="flex gap-3">
-              <button
-                onClick={() => setModal('approve')}
-                className="flex-1 text-sm py-2 rounded-lg bg-success text-white font-semibold hover:bg-green-600 transition-colors focus:outline-none focus:ring-2 focus:ring-success"
-              >
-                Approve
-              </button>
-              <button
-                onClick={() => setModal('reject')}
-                className="flex-1 text-sm py-2 rounded-lg bg-danger text-white font-semibold hover:bg-red-600 transition-colors focus:outline-none focus:ring-2 focus:ring-danger"
-              >
-                Reject
-              </button>
-            </div>
+            <p role="status" className="text-xs bg-amber-50 border border-amber-200 text-amber-800 rounded-lg p-3">
+              Approval and rejection are unavailable until an authenticated, authoritative
+              review API and persistent audit trail are connected. No local action is accepted.
+            </p>
           )}
         </div>
       )}
 
-      {modal && (
-        <DecisionModal item={item} mode={modal} onClose={() => setModal(null)} />
-      )}
     </div>
   )
 }
@@ -394,6 +285,10 @@ export function ApprovalsView() {
           </span>
         )}
       </div>
+      <p role="status" className="text-xs text-amber-800 bg-amber-50 rounded-lg p-3">
+        Read-only queue. Decisions are disabled until reviewer identity, authorization
+        and server-persisted approvals are implemented.
+      </p>
 
       <>
         {/* Pending approvals */}

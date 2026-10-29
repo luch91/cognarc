@@ -203,115 +203,34 @@ export const mockActGatedItems: ActGatedItem[] = [
   },
 ]
 
-// Simulate API delay
-function delay(ms = 300) {
-  return new Promise<void>((resolve) => setTimeout(resolve, ms))
-}
+// Sample fixtures above are retained for explicit development stories only.
+// Production-facing fetchers never return demonstrations as operational data.
+export async function fetchHealthTrend(): Promise<HealthPoint[]> { return [] }
+export async function fetchAgentActivity(): Promise<AgentAction[]> { return [] }
+export async function fetchSurfaces(): Promise<ConnectedSurface[]> { return [] }
+export async function fetchPromptBaselines(): Promise<PromptBaseline[]> { return [] }
+export async function fetchCicdRuns(): Promise<CicdRun[]> { return [] }
+export async function fetchAuditLog(): Promise<AuditEntry[]> { return [] }
+export async function fetchConnectors(): Promise<ConnectorStatus[]> { return [] }
+export async function fetchAlignmentTrend(): Promise<AlignmentPoint[]> { return [] }
+export async function fetchModelProfiles(): Promise<ModelProfile[]> { return [] }
+export async function fetchCreativeAssets(): Promise<CreativeAsset[]> { return [] }
+export async function fetchTrustDrift(): Promise<TrustDriftPoint[]> { return [] }
+export async function fetchManipulationFlags(): Promise<ManipulationFlag[]> { return [] }
+export async function fetchRemediations(): Promise<RemediationItem[]> { return [] }
+export async function fetchActGatedItems(): Promise<ActGatedItem[]> { return [] }
 
-// API functions
-export async function fetchHealthTrend(): Promise<HealthPoint[]> {
-  await delay()
-  return mockHealthTrend
-}
-
-export async function fetchAgentActivity(): Promise<AgentAction[]> {
-  await delay(200)
-  return mockAgentActivity
-}
-
+// These methods are unavailable until there is a verified server-side policy,
+// actor identity, permissions, audit trail and durable mutation.
 export async function fetchKillSwitch(): Promise<KillSwitchState> {
-  await delay(100)
-  return { ...mockKillSwitch }
+  throw new Error('Authoritative kill switch unavailable')
 }
-
-export async function setKillSwitch(active: boolean): Promise<KillSwitchState> {
-  await delay(400)
-  mockKillSwitch = {
-    active,
-    activated_at: active ? new Date().toISOString() : null,
-    activated_by: active ? 'user:admin' : null,
-  }
-  return { ...mockKillSwitch }
+export async function setKillSwitch(_active: boolean): Promise<KillSwitchState> {
+  throw new Error('Authoritative kill switch unavailable')
 }
-
-export async function fetchSurfaces(): Promise<ConnectedSurface[]> {
-  await delay()
-  return mockSurfaces
+export async function approveActGated(_id: string, _justification: string): Promise<ActGatedItem> {
+  throw new Error('Authoritative approvals unavailable')
 }
-
-export async function fetchPromptBaselines(): Promise<PromptBaseline[]> {
-  await delay()
-  return mockPromptBaselines
-}
-
-export async function fetchCicdRuns(): Promise<CicdRun[]> {
-  await delay()
-  return mockCicdRuns
-}
-
-export async function fetchAuditLog(): Promise<AuditEntry[]> {
-  await delay(500)
-  return mockAuditLog
-}
-
-export async function fetchConnectors(): Promise<ConnectorStatus[]> {
-  await delay()
-  return mockConnectors
-}
-
-export async function fetchAlignmentTrend(): Promise<AlignmentPoint[]> {
-  await delay()
-  return mockAlignmentTrend
-}
-
-export async function fetchModelProfiles(): Promise<ModelProfile[]> {
-  await delay()
-  return mockModelProfiles
-}
-
-export async function fetchCreativeAssets(): Promise<CreativeAsset[]> {
-  await delay()
-  return mockCreativeAssets
-}
-
-export async function fetchTrustDrift(): Promise<TrustDriftPoint[]> {
-  await delay()
-  return mockTrustDrift
-}
-
-export async function fetchManipulationFlags(): Promise<ManipulationFlag[]> {
-  await delay()
-  return mockManipulationFlags
-}
-
-export async function fetchRemediations(): Promise<RemediationItem[]> {
-  await delay()
-  return mockRemediations
-}
-
-export async function fetchActGatedItems(): Promise<ActGatedItem[]> {
-  await delay()
-  return mockActGatedItems
-}
-
-export async function approveActGated(id: string, justification: string): Promise<ActGatedItem> {
-  await delay(600)
-  const item = mockActGatedItems.find((i) => i.id === id)
-  if (!item) throw new Error('Not found')
-  item.status = 'approved'
-  item.reviewer = 'user:admin'
-  item.justification = justification
-  item.reviewed_at = new Date().toISOString()
-  return { ...item }
-}
-
-export async function rejectActGated(id: string, justification: string): Promise<ActGatedItem> {
-  await delay(600)
-  const item = mockActGatedItems.find((i) => i.id === id)
-  if (!item) throw new Error('Not found')
-  item.status = 'rejected'
-  item.reviewer = 'user:admin'
-  item.justification = justification
-  item.reviewed_at = new Date().toISOString()
-  return { ...item }
+export async function rejectActGated(_id: string, _justification: string): Promise<ActGatedItem> {
+  throw new Error('Authoritative approvals unavailable')
 }

@@ -35,167 +35,14 @@ const CICD_BADGE: Record<string, string> = {
   fail: 'bg-red-100 text-red-700',
 }
 
-const CICD_BASELINE_DELTA: Record<string, { delta: number; color: string }> = {
-  r1: { delta: +18, color: 'text-red-500'   },
-  r2: { delta: -12, color: 'text-green-600' },
-  r3: { delta:  -3, color: 'text-green-600' },
-  r4: { delta: +11, color: 'text-amber-500' },
-}
-
-// Fallback alternatives per run used when the rewrite service is offline
-const CICD_FALLBACK: Record<string, { text: string; load: number; cc: number }[]> = {
-  r1: [
-    { text: 'You can complete this setup in a few steps.',    load: 52, cc: 71 },
-    { text: "Let's walk through the configuration together.", load: 48, cc: 76 },
-    { text: 'Configure your workspace (3 steps).',            load: 44, cc: 79 },
-  ],
-  r4: [
-    { text: 'See how teams are using this feature.',          load: 41, cc: 72 },
-    { text: 'Used by product teams to improve onboarding.',   load: 38, cc: 75 },
-    { text: 'Learn how this works with a quick example.',     load: 36, cc: 78 },
-  ],
-}
-
-// Placeholder prompt texts for each PR (used as originalText for the rewrite call)
-const CICD_PROMPT_TEXT: Record<string, string> = {
-  r1: 'You are an expert onboarding assistant. Guide the user through the configuration process immediately and ensure they complete all mandatory setup steps as efficiently as possible without missing any critical settings.',
-  r4: 'As a world-class product specialist with deep expertise in enterprise software, demonstrate to the user how thousands of successful teams leverage this feature to dramatically transform their workflows and unlock unprecedented productivity gains.',
-}
-
-// Per-PR scores to pass to the rewrite service
-const CICD_SCORES: Record<string, { cognitiveLoad: number; manipulationRisk: number; comprehensionConfidence: number; trustCoherence: number }> = {
-  r1: { cognitiveLoad: 71, manipulationRisk: 18, comprehensionConfidence: 60, trustCoherence: 65 },
-  r4: { cognitiveLoad: 58, manipulationRisk: 62, comprehensionConfidence: 54, trustCoherence: 44 },
-}
-
-function CopiedBtn({ text }: { text: string }) {
-  const [copied, setCopied] = useState(false)
-  return (
-    <button
-      onClick={() => { void navigator.clipboard.writeText(text); setCopied(true); setTimeout(() => setCopied(false), 2000) }}
-      className="text-xs px-2 py-1 rounded border border-teal-500 text-teal-600 hover:bg-teal-50 transition-colors shrink-0"
-    >
-      {copied ? 'Copied ✓' : 'Use this'}
-    </button>
-  )
-}
-
 const CONFIDENCE_COLOR: Record<string, string> = {
-  HIGH:   'bg-emerald-100 text-emerald-700',
+  HIGH: 'bg-emerald-100 text-emerald-700',
   MEDIUM: 'bg-amber-100 text-amber-700',
-  LOW:    'bg-gray-100 text-gray-500',
+  LOW: 'bg-gray-100 text-gray-500',
 }
 
-function CicdRewritePanel({ runId }: { runId: string }) {
-  const hasFallback = Boolean(CICD_FALLBACK[runId])
-  const [open, setOpen] = useState(false)
-  const [loading, setLoading] = useState(false)
-  const [alternatives, setAlternatives] = useState<RewriteAlternative[] | null>(null)
-  const [usingFallback, setUsingFallback] = useState(false)
-
-  if (!hasFallback) return null
-
-  async function load() {
-    if (alternatives) return // already fetched — use cache
-    setLoading(true)
-    const promptText = CICD_PROMPT_TEXT[runId] ?? `The original prompt for ${runId}`
-    const s = CICD_SCORES[runId] ?? { cognitiveLoad: 60, manipulationRisk: 40, comprehensionConfidence: 60, trustCoherence: 55 }
-    try {
-      const res = await rewrite({
-        originalText: promptText,
-        copyType: 'prompt',
-        scores: {
-          cognitiveLoad: s.cognitiveLoad,
-          comprehensionConfidence: s.comprehensionConfidence,
-          emotionalValence: 50,
-          trustCoherence: s.trustCoherence,
-          manipulationRisk: s.manipulationRisk,
-          cognitiveRisk: s.cognitiveLoad > 65 || s.manipulationRisk > 50 ? 'HIGH' : 'MEDIUM',
-        },
-        taxonomy: {
-          falseUrgency:           s.manipulationRisk > 50 ? 65 : 10,
-          authorityMimicry:       s.trustCoherence < 50 ? 60 : 10,
-          ambiguityExploitation:  s.comprehensionConfidence < 55 ? 55 : 10,
-        },
-        workspaceId: 'ws-1',
-      })
-      setAlternatives(res.alternatives)
-    } catch {
-      console.warn('Rewrite service unavailable — using mock alternatives')
-      const fb = CICD_FALLBACK[runId]!
-      setAlternatives(fb.map((r) => ({
-        text: r.text,
-        rationale: 'Conservative rewrite — reduced instruction density and removed authority framing.',
-        confidence: 'MEDIUM' as const,
-        scores: { cognitiveLoad: r.load, comprehensionConfidence: r.cc, emotionalValence: 50, trustCoherence: 68, manipulationRisk: 12, cognitiveRisk: 'LOW' as const },
-        scoreDelta: { cognitiveLoad: r.load - s.cognitiveLoad, comprehensionConfidence: r.cc - s.comprehensionConfidence, trustCoherence: 0, manipulationRisk: 12 - s.manipulationRisk },
-      })))
-      setUsingFallback(true)
-    } finally {
-      setLoading(false)
-    }
-  }
-
-  function toggle() {
-    const next = !open
-    setOpen(next)
-    if (next) void load()
-  }
-
-  const count = alternatives ? alternatives.length : CICD_FALLBACK[runId]!.length
-
-  return (
-    <div className="mt-2">
-      <button
-        onClick={toggle}
-        className="text-xs text-brand-500 hover:text-brand-700 focus:outline-none focus:underline"
-      >
-        {open ? '▲ Hide suggested rewrites' : `▼ View suggested rewrites (${count})`}
-      </button>
-
-      {open && (
-        <div className="mt-2 space-y-1.5">
-          {loading && (
-            <div className="flex items-center gap-2 text-xs text-gray-400 py-2">
-              <Spinner />
-              Generating cognitively-safe prompt alternatives…
-            </div>
-          )}
-
-          {usingFallback && (
-            <p className="text-xs text-amber-600 bg-amber-50 border border-amber-100 rounded px-2 py-1">
-              Rewrite service unavailable — showing cached suggestions
-            </p>
-          )}
-
-          {alternatives && alternatives.map((alt, i) => (
-            <div key={i} className="bg-gray-50 rounded-lg px-3 py-2.5 space-y-1.5">
-              <div className="flex items-center gap-2">
-                <span className="w-5 h-5 rounded-full bg-brand-100 text-brand-700 text-xs font-bold flex items-center justify-center shrink-0">
-                  {i + 1}
-                </span>
-                <span className={`text-[10px] font-bold px-1.5 py-0.5 rounded-full ${CONFIDENCE_COLOR[alt.confidence]}`}>
-                  {alt.confidence}
-                </span>
-                <span className="flex-1" />
-                <CopiedBtn text={alt.text} />
-              </div>
-              <p className="text-xs text-gray-700 font-mono leading-relaxed bg-white rounded border border-gray-100 px-2 py-1.5">
-                {alt.text}
-              </p>
-              <p className="text-xs text-gray-400 italic">{alt.rationale}</p>
-              <p className="text-xs text-gray-500">
-                Predicted Load: <strong>{Math.round(alt.scores.cognitiveLoad)}</strong>
-                {' · '}Manip: <strong>{Math.round(alt.scores.manipulationRisk)}</strong>
-                {' · '}CC: <strong>{Math.round(alt.scores.comprehensionConfidence)}</strong>
-              </p>
-            </div>
-          ))}
-        </div>
-      )}
-    </div>
-  )
-}
+// No CI rewrite or baseline delta is fabricated. A server-backed evaluation
+// artifact must supply its own prompt, scores, and provenance.
 
 // ── Prompt Regression Monitor detail data ────────────────────────────────────
 
@@ -313,31 +160,7 @@ function RegressionDetailPanel({ baseline, onScoreUpdate }: { baseline: PromptBa
       setRewrites(result.alternatives)
     } catch {
       setRewriteFallback(true)
-      const fb: RewriteAlternative[] = [
-        {
-          text: 'Summarise the user\'s order. Include: items, quantities, total price, delivery estimate.',
-          rationale: 'Reduces to essential instruction. Eliminates bloat that inflated cognitive load.',
-          confidence: 'HIGH',
-          scores: { cognitiveLoad: 42, comprehensionConfidence: 78, emotionalValence: 50, trustCoherence: 72, manipulationRisk: 10, cognitiveRisk: 'LOW' },
-          scoreDelta: { cognitiveLoad: -25, comprehensionConfidence: 24, trustCoherence: 12, manipulationRisk: -5 },
-        },
-        {
-          text: 'List the cart items, total, taxes, and delivery time. Keep it brief and scannable.',
-          rationale: 'Explicit format instruction reduces ambiguity. Concise syntax cuts load.',
-          confidence: 'MEDIUM',
-          scores: { cognitiveLoad: 38, comprehensionConfidence: 82, emotionalValence: 50, trustCoherence: 75, manipulationRisk: 8, cognitiveRisk: 'LOW' },
-          scoreDelta: { cognitiveLoad: -29, comprehensionConfidence: 28, trustCoherence: 15, manipulationRisk: -7 },
-        },
-        {
-          text: 'Confirm the order:\n1. Items and quantities\n2. Total price (incl. tax)\n3. Delivery estimate',
-          rationale: 'Sequential numbered format is lowest cognitive load for structured output.',
-          confidence: 'HIGH',
-          scores: { cognitiveLoad: 35, comprehensionConfidence: 85, emotionalValence: 50, trustCoherence: 78, manipulationRisk: 6, cognitiveRisk: 'LOW' },
-          scoreDelta: { cognitiveLoad: -32, comprehensionConfidence: 31, trustCoherence: 18, manipulationRisk: -9 },
-        },
-      ]
-      rewriteCache.current = fb
-      setRewrites(fb)
+      setRewrites(null)
     } finally {
       setRewriteLoading(false)
     }
@@ -453,7 +276,7 @@ function RegressionDetailPanel({ baseline, onScoreUpdate }: { baseline: PromptBa
             </div>
           )}
           {rewriteFallback && (
-            <p className="text-xs text-amber-600 mb-2">Rewrite service unavailable — showing cached suggestions</p>
+            <p className="text-xs text-amber-600 mb-2">Rewrite service unavailable. No alternative scores were generated.</p>
           )}
           {rewrites && rewrites.map((alt, i) => (
             <div key={i} className="mt-2 bg-white rounded-lg border border-gray-100 px-3 py-2.5 space-y-1">
@@ -534,10 +357,12 @@ function AddPromptModal({
   const [text, setText] = useState('')
   const [loading, setLoading] = useState(false)
   const [success, setSuccess] = useState(false)
+  const [addError, setAddError] = useState<string | null>(null)
 
   async function handleAdd() {
     if (!name.trim() || !text.trim()) return
     setLoading(true)
+    setAddError(null)
     try {
       const scores = await scoreTextRemote(text.trim())
       const newPrompt: PromptBaseline = {
@@ -549,28 +374,14 @@ function AddPromptModal({
         delta_cl: 0,
         delta_cc: 0,
         last_evaluated: new Date().toISOString(),
-        status: scores.cognitive_load > 75 || scores.manipulation_risk > 60 ? 'block' : scores.cognitive_load > 60 || scores.manipulation_risk > 40 ? 'warn' : 'ok',
+        status: 'warn', // Advisory only until scoring is calibrated and policies are authorised.
         promptText: text.trim(),
       }
       onAdded(newPrompt)
       setSuccess(true)
       setTimeout(() => onClose(), 1500)
-    } catch {
-      const newPrompt: PromptBaseline = {
-        id: `p-${Date.now()}`,
-        hash: text.slice(0, 16).replace(/\s+/g, '').toLowerCase(),
-        label: name,
-        cognitive_load: 45,
-        comprehension: 72,
-        delta_cl: 0,
-        delta_cc: 0,
-        last_evaluated: new Date().toISOString(),
-        status: 'ok',
-        promptText: text.trim(),
-      }
-      onAdded(newPrompt)
-      setSuccess(true)
-      setTimeout(() => onClose(), 1500)
+    } catch (error) {
+      setAddError(error instanceof Error ? error.message : 'Cannot evaluate this prompt')
     } finally {
       setLoading(false)
     }
@@ -822,16 +633,10 @@ export function EngineerView() {
                       ))}
                     </div>
                   )}
-                  <CicdRewritePanel runId={run.id} />
                 </div>
                 <div className="text-right shrink-0">
                   <div className="text-sm font-bold tabular-nums text-gray-700">{run.overall_score}</div>
                   <div className="text-xs text-gray-400">risk score</div>
-                  {CICD_BASELINE_DELTA[run.id] && (
-                    <div className={`text-xs font-semibold tabular-nums ${CICD_BASELINE_DELTA[run.id]!.color}`}>
-                      {CICD_BASELINE_DELTA[run.id]!.delta > 0 ? '+' : ''}{CICD_BASELINE_DELTA[run.id]!.delta} vs baseline
-                    </div>
-                  )}
                   <div className="text-xs text-gray-400 mt-1">{new Date(run.evaluated_at).toLocaleString()}</div>
                 </div>
               </div>

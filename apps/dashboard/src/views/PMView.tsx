@@ -1,6 +1,6 @@
 import { useQuery } from '@tanstack/react-query'
 import {
-  ResponsiveContainer, LineChart, Line, XAxis, YAxis, Tooltip, Legend, ReferenceLine,
+  ResponsiveContainer, LineChart, Line, XAxis, YAxis, Tooltip,
 } from 'recharts'
 import { fetchAlignmentTrend, fetchModelProfiles } from '../api/mock.js'
 import { Card } from '../components/Card.js'
@@ -9,21 +9,12 @@ import { ScoreGauge } from '../components/ScoreGauge.js'
 import { Spinner } from '../components/Spinner.js'
 import { useAppContext } from '../context/AppContext.js'
 
-const ONBOARDING_STEPS = [
-  { step: 'Welcome',     load: 28, comprehension: 88, sessions: 1200 },
-  { step: 'Profile',     load: 42, comprehension: 79, sessions: 1148 },
-  { step: 'Connect SDK', load: 71, comprehension: 54, sessions: 892  },
-  { step: 'Configure',   load: 83, comprehension: 41, sessions: 541  },
-  { step: 'First Score', load: 55, comprehension: 68, sessions: 480  },
-  { step: 'Complete',    load: 32, comprehension: 85, sessions: 461  },
-]
-
 export function PMView() {
   const { data: alignment, isLoading: alLoading } = useQuery({ queryKey: ['alignment-trend'], queryFn: fetchAlignmentTrend })
   const { data: models, isLoading: modLoading } = useQuery({ queryKey: ['model-profiles'], queryFn: fetchModelProfiles })
   const { connectors } = useAppContext()
 
-  const latestAlignment = alignment?.[alignment.length - 1]?.score ?? 0
+  const latestAlignment = alignment?.[alignment.length - 1]?.score
 
   return (
     <div className="space-y-6">
@@ -33,7 +24,9 @@ export function PMView() {
       <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
         <Card className="sm:col-span-1">
           <div className="flex flex-col items-center py-2">
-            <ScoreGauge label="Current Alignment Score" value={latestAlignment} />
+            {latestAlignment === undefined
+              ? <p className="text-sm text-gray-500">No measured alignment score</p>
+              : <ScoreGauge label="Current Alignment Score" value={latestAlignment} />}
           </div>
         </Card>
 
@@ -41,6 +34,8 @@ export function PMView() {
         <Card title="30-Day Cognitive-Behavioral Alignment" className="sm:col-span-2">
           {alLoading || !alignment ? (
             <div className="flex justify-center py-4"><Spinner /></div>
+          ) : !alignment.length ? (
+            <p className="text-sm text-gray-500">No verified alignment history is connected.</p>
           ) : (
             <ResponsiveContainer width="100%" height={140}>
               <LineChart data={alignment} margin={{ top: 4, right: 8, bottom: 0, left: -20 }}>
@@ -56,6 +51,7 @@ export function PMView() {
 
       {/* Analytics connector status */}
       <Card title="Analytics Connector Status">
+        {connectors.length === 0 && <p className="text-sm text-gray-500 mb-2">No analytics connector has a verified integration.</p>}
         <div className="overflow-x-auto">
           <table className="w-full text-sm" aria-label="Connector status">
             <thead>
@@ -91,21 +87,10 @@ export function PMView() {
       {/* Live Event Stream (STREAM-03 + STREAM-04) — replaces hardcoded Recent Event Labels */}
       <LiveEventStream />
 
-      {/* Onboarding load curve */}
-      <Card title="Onboarding Flow — Cognitive Load Curve">
-        <ResponsiveContainer width="100%" height={200}>
-          <LineChart data={ONBOARDING_STEPS} margin={{ top: 4, right: 16, bottom: 0, left: -20 }}>
-            <XAxis dataKey="step" tick={{ fontSize: 11 }} />
-            <YAxis domain={[0, 100]} tick={{ fontSize: 11 }} />
-            <Tooltip formatter={(v, name) => [v, name === 'load' ? 'Cognitive Load' : 'Comprehension']} />
-            <Legend wrapperStyle={{ fontSize: 12 }} />
-            <ReferenceLine y={70} stroke="#ef4444" strokeDasharray="4 3" label={{ value: 'Load threshold', position: 'insideTopRight', fontSize: 10, fill: '#ef4444' }} />
-            <Line type="monotone" dataKey="load"          name="Cognitive Load"  stroke="#f59e0b" dot={true} strokeWidth={2} />
-            <Line type="monotone" dataKey="comprehension" name="Comprehension"   stroke="#14b8a6" dot={true} strokeWidth={2} />
-          </LineChart>
-        </ResponsiveContainer>
-        <p className="text-xs text-gray-400 mt-2">
-          Step "Configure" (83) and "Connect SDK" (71) are above the 70-point threshold — high drop-off risk.
+      <Card title="Onboarding Flow">
+        <p className="text-sm text-gray-500">
+          No verified onboarding behavior or measured load series is connected.
+          The previous illustration is excluded from operational reporting.
         </p>
       </Card>
 
@@ -115,6 +100,7 @@ export function PMView() {
           <div className="flex justify-center py-4"><Spinner /></div>
         ) : (
           <div className="overflow-x-auto">
+            {(!models || models.length === 0) && <p className="text-sm text-gray-500 mb-2">No verified model evaluations yet.</p>}
             <table className="w-full text-sm" aria-label="Model profiles">
               <thead>
                 <tr className="text-xs text-gray-400 uppercase border-b border-gray-100">

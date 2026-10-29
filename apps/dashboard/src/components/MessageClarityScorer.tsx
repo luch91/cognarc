@@ -49,45 +49,6 @@ function inferTaxonomy(s: LiveScoreResult): CognitiveTaxonomy {
   }
 }
 
-function makeFallbackRewrites(s: LiveScoreResult): RewriteAlternative[] {
-  const base: CognitiveScores = {
-    cognitiveLoad:           Math.max(20, s.cognitive_load - 15),
-    comprehensionConfidence: Math.min(90, s.comprehension_confidence + 12),
-    trustCoherence:          Math.min(85, s.trust_coherence + 10),
-    manipulationRisk:        Math.max(5, s.manipulation_risk - 38),
-  }
-  const delta = (b: CognitiveScores): RewriteAlternative['scoreDelta'] => ({
-    cognitiveLoad:           b.cognitiveLoad - s.cognitive_load,
-    comprehensionConfidence: b.comprehensionConfidence - s.comprehension_confidence,
-    trustCoherence:          b.trustCoherence - s.trust_coherence,
-    manipulationRisk:        b.manipulationRisk - s.manipulation_risk,
-  })
-  const cognitiveRisk = 'LOW' as const
-  return [
-    {
-      text: 'See how this works in two minutes — no commitment required.',
-      rationale: 'Removed urgency language and replaced with a specific, credible time estimate.',
-      scores: { ...base, emotionalValence: s.emotional_valence, cognitiveRisk },
-      scoreDelta: delta(base),
-      confidence: 'HIGH',
-    },
-    {
-      text: 'Join teams who use this to improve their results.',
-      rationale: 'Replaced unverifiable social proof with a factual description of use case.',
-      scores: { ...base, manipulationRisk: base.manipulationRisk + 5, emotionalValence: s.emotional_valence, cognitiveRisk },
-      scoreDelta: delta({ ...base, manipulationRisk: base.manipulationRisk + 5 }),
-      confidence: 'MEDIUM',
-    },
-    {
-      text: 'Learn more about how this fits your workflow.',
-      rationale: 'Replaced high-pressure CTA with a lower-friction, reader-led action.',
-      scores: { ...base, manipulationRisk: base.manipulationRisk + 10, emotionalValence: s.emotional_valence, cognitiveRisk },
-      scoreDelta: delta({ ...base, manipulationRisk: base.manipulationRisk + 10 }),
-      confidence: 'LOW',
-    },
-  ]
-}
-
 const CONFIDENCE_BADGE: Record<string, string> = {
   HIGH:   'bg-emerald-100 text-emerald-700',
   MEDIUM: 'bg-amber-100 text-amber-700',
@@ -238,7 +199,7 @@ export function MessageClarityScorer() {
         description: `3 safer ${selectedTypeLabel.toLowerCase()} alternatives generated via ${result.modelUsed}.`,
       })
     } catch {
-      setAlternatives(makeFallbackRewrites(scores))
+      setAlternatives(null)
       setRewriteFallback(true)
     } finally {
       setRewriting(false)
@@ -354,7 +315,7 @@ export function MessageClarityScorer() {
         <div className="space-y-3">
           {rewriteFallback && (
             <p className="text-xs text-amber-600 bg-amber-50 border border-amber-100 rounded-lg px-3 py-2">
-              (Example suggestions — rewrite service unavailable)
+              Rewrite service unavailable. No suggested scores or rewrites were generated.
             </p>
           )}
           {alternatives.map((alt, i) => (

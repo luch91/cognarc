@@ -1,7 +1,4 @@
 import { createContext, useContext, useState, useEffect, type ReactNode } from 'react'
-import {
-  mockAgentActivity, mockAuditLog, mockActGatedItems, mockConnectors, mockCreativeAssets,
-} from '../api/mock.js'
 import { supabase } from '../api/supabaseClient.js'
 import type { AgentAction, AuditEntry, ActGatedItem, ConnectorStatus, CreativeAsset, HealthPoint, VideoAnalysisResult } from '../api/types.js'
 import type { LiveScoreResult, ScoringMode, ScoringProgress } from '../api/scoringApi.js'
@@ -17,13 +14,6 @@ export interface ManipulationFeedEntry {
   source?: string
 }
 
-const INITIAL_FEED: ManipulationFeedEntry[] = [
-  { id: 1, category: 'false_urgency',           score: 84, time: '2 min ago',  excerpt: 'Act now — experts unanimously agree. Limited time only...' },
-  { id: 2, category: 'authority_mimicry',        score: 71, time: '11 min ago', excerpt: 'As verified by leading medical institutions, this approach...' },
-  { id: 3, category: 'sycophantic_drift',        score: 58, time: '23 min ago', excerpt: "You're absolutely right, and your instinct here is spot on..." },
-  { id: 4, category: 'obfuscation',              score: 63, time: '41 min ago', excerpt: 'The multifaceted synergistic framework leverages dynamic...' },
-  { id: 5, category: 'false_urgency',            score: 79, time: '1 hr ago',   excerpt: 'Only 3 spots remaining. This offer expires at midnight tonight...' },
-]
 
 // ── Connector shape used by Settings + PM ─────────────────────────────────
 export interface ConnectorConfig {
@@ -83,21 +73,14 @@ interface AppContextValue extends AppState {
 }
 
 // ── Initial connectors (merged from SettingsView + PMView) ───────────────────
-const INITIAL_CONNECTORS: ConnectorConfig[] = [
-  { id: 'seg', name: 'Segment',   initial: 'S', color: 'bg-green-500',  status: 'connected', writeBack: true,  eventsToday: 12847 },
-  { id: 'amp', name: 'Amplitude', initial: 'A', color: 'bg-blue-500',   status: 'connected', writeBack: true,  eventsToday: 8421  },
-  { id: 'mix', name: 'Mixpanel',  initial: 'M', color: 'bg-purple-500', status: 'degraded',  writeBack: false, eventsToday: 0     },
-  { id: 'ph',  name: 'PostHog',   initial: 'P', color: 'bg-orange-500', status: 'connected', writeBack: true,  eventsToday: 5503  },
-  { id: 'ga4', name: 'GA4',       initial: 'G', color: 'bg-yellow-500', status: 'connected', writeBack: false, eventsToday: 21004 },
-]
 
 const INITIAL_STATE: AppState = {
-  evaluationQueue: mockCreativeAssets,
-  auditLog: mockAuditLog,
-  actGatedQueue: mockActGatedItems,
-  agentFeed: mockAgentActivity,
-  manipulationFeed: INITIAL_FEED,
-  connectors: INITIAL_CONNECTORS,
+  evaluationQueue: [],
+  auditLog: [],
+  actGatedQueue: [],
+  agentFeed: [],
+  manipulationFeed: [],
+  connectors: [],
   thresholds: { cognitiveLoadMax: 80, manipulationRiskMax: 40, comprehensionConfidenceMin: 50 },
   killSwitchActive: false,
   killSwitchBanner: false,
@@ -209,21 +192,10 @@ export function AppProvider({ children }: { children: ReactNode }) {
     setActGatedQueue((prev) => [full, ...prev])
   }
 
-  function resolveActGatedItem(id: string, outcome: 'approved' | 'rejected') {
-    setActGatedQueue((prev) =>
-      prev.map((i) =>
-        i.id === id
-          ? { ...i, status: outcome, reviewer: 'user:admin', reviewed_at: new Date().toISOString() }
-          : i
-      )
-    )
-    addAuditEntry({
-      action_type: 'ACT_GATED_APPROVED',
-      zone: 'ACT_GATED',
-      policy_rule: 'rule:v1.2',
-      outcome,
-      authorising_human_or_policy: 'user:admin',
-    })
+  function resolveActGatedItem(_id: string, _outcome: 'approved' | 'rejected') {
+    // No authoritative reviewer endpoint exists yet. Local state must never
+    // pretend an approval was issued or persisted.
+    throw new Error('Authoritative approvals are not configured')
   }
 
   function addAgentFeedEntry(entry: Omit<AgentAction, 'id' | 'timestamp' | 'workspace_id'>) {
