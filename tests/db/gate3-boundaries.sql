@@ -111,7 +111,7 @@ RESET ROLE;
 -- Enforce physical audit immutability even against a privileged writer.
 -- Separate the expected trigger error from the assertion, so a successful
 -- mutation cannot be misinterpreted as a correctly rejected operation.
-DO $
+DO $$
 DECLARE mutation_was_allowed boolean := false;
 BEGIN
   BEGIN
@@ -125,7 +125,7 @@ BEGIN
   ) THEN
     RAISE EXCEPTION 'Database audit UPDATE unexpectedly succeeded';
   END IF;
-END $;
+END $$;
 DO $$
 BEGIN
   IF EXISTS (
