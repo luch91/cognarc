@@ -255,11 +255,11 @@ export function MessageClarityScorer() {
   }
 
   const headerLine = health === 'FLAGGED'
-    ? '⚠ This copy needs work before it goes live.'
+    ? 'Higher risk indicator. Review language and supporting evidence.'
     : health === 'NEEDS_REVIEW'
-    ? '⚠ This copy has some issues worth fixing.'
+    ? 'Some heuristic signals may benefit from review.'
     : health === 'CLEAR'
-    ? '✓ This copy looks good.'
+    ? 'Few heuristic markers found. User outcomes remain untested.'
     : null
 
   const headerColor = health === 'CLEAR' ? 'text-emerald-700' : 'text-amber-700'
@@ -321,6 +321,11 @@ export function MessageClarityScorer() {
       {/* Score result */}
       {scores && (
         <div className="space-y-3">
+          <p className="text-xs text-amber-800 bg-amber-50 border border-amber-200 rounded-lg p-2" role="status">
+            {scores.scoring_provenance.engine === 'mathematical' ? 'CME mathematical indices' : 'TRIBE experimental indices'}.
+            {scores.scoring_provenance.fallback_used ? ' Fallback reason: ' + scores.scoring_provenance.fallback_reason + '.' : ''}
+            Advisory only; no calibrated comprehension or manipulation classification.
+          </p>
           {headerLine && (
             <p className={`text-sm font-bold ${headerColor}`}>{headerLine}</p>
           )}

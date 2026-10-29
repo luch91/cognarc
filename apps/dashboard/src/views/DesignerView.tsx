@@ -174,13 +174,21 @@ function UrlAbComparison() {
     if (resB.status === 'fulfilled') setResultB(resB.value)
     else setErrorB(resB.reason instanceof Error ? resB.reason.message : 'Failed to analyse Page B')
 
+    if (resA.status === 'fulfilled' && resB.status === 'fulfilled') {
+      if (resA.value.scoring_provenance.engine !== resB.value.scoring_provenance.engine ||
+          resA.value.scoring_provenance.calibration_status !== resB.value.scoring_provenance.calibration_status) {
+        setResultA(null)
+        setResultB(null)
+        setErrorB('Pages used different scoring engines. Paired comparison is unavailable without matching provenance.')
+      }
+    }
+
     setLoading(false)
   }
 
   const hasResults = resultA && resultB
 
   let winner: 'A' | 'B' | 'inconclusive' = 'inconclusive'
-  let confidence: 'HIGH' | 'MEDIUM' | 'LOW' = 'LOW'
   const dims: { label: string; a: number; b: number; lower: boolean }[] = []
 
   if (hasResults) {
@@ -190,16 +198,14 @@ function UrlAbComparison() {
       { label: 'Trust', a: resultA.overallScores.trustCoherence, b: resultB.overallScores.trustCoherence, lower: false },
       { label: 'Manipulation', a: resultA.overallScores.manipulationRisk, b: resultB.overallScores.manipulationRisk, lower: true },
     )
-    let bWins = 0, aWins = 0, totalDelta = 0
+    let bWins = 0, aWins = 0
     for (const d of dims) {
       const better = d.lower ? d.b < d.a : d.b > d.a
       const delta = Math.abs(d.b - d.a)
-      if (better) { bWins++; totalDelta += delta } else if (delta > 0) { aWins++; totalDelta += delta }
+      if (better) { bWins++ } else if (delta > 0) { aWins++ }
     }
     if (bWins >= 3) winner = 'B'
     else if (aWins >= 3) winner = 'A'
-    if ((bWins >= 3 || aWins >= 3) && totalDelta / Math.max(bWins + aWins, 1) > 15) confidence = 'HIGH'
-    else if (bWins >= 2 || aWins >= 2) confidence = 'MEDIUM'
   }
 
   return (
@@ -249,6 +255,10 @@ function UrlAbComparison() {
 
       {hasResults && (
         <div className="space-y-4">
+          <p className="text-xs text-amber-800 bg-amber-50 rounded p-2">
+            Engine: {resultA.scoring_provenance.engine}. The comparison uses uncalibrated scores
+            and does not establish which page performs better with people.
+          </p>
           <div className="grid grid-cols-3 gap-4">
             {/* Page A */}
             <div className="border border-gray-200 rounded-xl p-4 space-y-2">
@@ -290,11 +300,9 @@ function UrlAbComparison() {
               </div>
               <div className="mt-2 text-center space-y-1">
                 <p className={`text-sm font-bold ${winner === 'inconclusive' ? 'text-gray-500' : 'text-teal-600'}`}>
-                  {winner === 'A' ? 'Page A preferred' : winner === 'B' ? 'Page B preferred' : 'Inconclusive'}
+                  {winner === 'A' ? 'A: lower heuristic indices' : winner === 'B' ? 'B: lower heuristic indices' : 'Inconclusive'}
                 </p>
-                <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full uppercase tracking-wide ${
-                  confidence === 'HIGH' ? 'bg-green-100 text-green-700' : confidence === 'MEDIUM' ? 'bg-amber-100 text-amber-700' : 'bg-gray-100 text-gray-500'
-                }`}>{confidence} confidence</span>
+                <span className="text-xs text-amber-700">Heuristic comparison only; no statistical confidence estimate.</span>
               </div>
             </div>
 

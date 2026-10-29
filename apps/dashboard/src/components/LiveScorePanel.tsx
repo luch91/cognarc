@@ -109,16 +109,6 @@ export function LiveScorePanel() {
       setRewrites(res.alternatives)
     } catch {
       setRewriteFallback(true)
-      /* Rewrites and scores must not be simulated after a service failure. */
-      /* setRewrites([
-        {
-          text: 'A simplified version of your text would score lower on cognitive load.',
-          rationale: 'Rewrite service unavailable — showing placeholder.',
-          confidence: 'MEDIUM' as const,
-          scores: { cognitiveLoad: 35, comprehensionConfidence: 80, emotionalValence: 50, trustCoherence: 70, manipulationRisk: 10, cognitiveRisk: 'LOW' as const },
-          scoreDelta: { cognitiveLoad: -20, comprehensionConfidence: 15, trustCoherence: 10, manipulationRisk: -10 },
-        },
-      ]) */
       setRewrites(null)
     } finally {
       setRewriteLoading(false)
@@ -131,7 +121,7 @@ export function LiveScorePanel() {
       action={
         result ? (
           <span className={`text-xs font-semibold px-2 py-0.5 rounded-full ${RISK_COLOR[result.cognitive_risk]}`}>
-            {result.cognitive_risk} RISK
+            {result.cognitive_risk} {result.scoring_provenance.policy_eligible ? 'RISK' : 'INDEX'}
           </span>
         ) : undefined
       }

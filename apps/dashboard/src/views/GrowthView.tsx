@@ -149,9 +149,9 @@ function deriveVariantHealth(s: LiveScoreResult): 'FLAGGED' | 'NEEDS_REVIEW' | '
 }
 
 const VARIANT_HEALTH_BADGE = {
-  FLAGGED: { bg: 'bg-red-100 text-red-700', label: 'FLAGGED' },
-  NEEDS_REVIEW: { bg: 'bg-amber-100 text-amber-700', label: 'NEEDS REVIEW' },
-  CLEAR: { bg: 'bg-green-100 text-green-700', label: 'CLEAR' },
+  FLAGGED: { bg: 'bg-red-100 text-red-700', label: 'REVIEW SIGNAL' },
+  NEEDS_REVIEW: { bg: 'bg-amber-100 text-amber-700', label: 'CHECK MARKERS' },
+  CLEAR: { bg: 'bg-green-100 text-green-700', label: 'FEW MARKERS' },
 } as const
 
 function nextLabel(variants: PendingVariant[]): string {

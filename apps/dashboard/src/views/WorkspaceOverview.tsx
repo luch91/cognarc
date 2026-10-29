@@ -42,7 +42,9 @@ export function WorkspaceOverview() {
   // Use live score when available, fall back to mock trend's last point
   const latest = latestLiveScore ?? trend?.[trend.length - 1]
   // Never mix mock fixtures and real engine evaluations in a single series.
-  const chartData = liveScoreTrend.length > 0 ? liveScoreTrend : (trend ?? [])
+  const activeEngine = lastLiveScoreResult?.scoring_provenance.engine
+  const currentEngineSeries = activeEngine ? liveScoreTrend.filter(point => point.engine === activeEngine) : liveScoreTrend
+  const chartData = currentEngineSeries.length > 0 ? currentEngineSeries : (trend ?? [])
   const pendingGated = agentFeed.filter((a) => a.zone === 'ACT_GATED' && a.status === 'pending')
 
   return (

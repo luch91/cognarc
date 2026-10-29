@@ -296,6 +296,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
       comprehension: result.comprehension_confidence,
       trust: result.trust_coherence,
       manipulation_risk: result.manipulation_risk,
+      engine: result.scoring_provenance.engine,
     }
     setLatestLiveScore(point)
     setLiveScoreTrend((prev) => [...prev, point].slice(-30))
