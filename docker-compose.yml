@@ -42,7 +42,8 @@ services:
     environment:
       NODE_ENV: production
       PORT: 3001
-      COGNARC_SCORING_ENGINE: ${COGNARC_SCORING_ENGINE:-mock}
+      COGNARC_SCORING_ENGINE: ${COGNARC_SCORING_ENGINE:-math}
+      COGNARC_FALLBACK_ENABLED: ${COGNARC_FALLBACK_ENABLED:-true}
       GCP_TRIBE_ENDPOINT: ${GCP_TRIBE_ENDPOINT:-}
     restart: unless-stopped
     healthcheck:

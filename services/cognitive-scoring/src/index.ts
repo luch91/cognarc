@@ -1,10 +1,10 @@
-import express from 'express'
+import express, { type Application } from 'express'
 import { env } from './config/env.js'
 import { createScoringEngine } from './engines/factory.js'
 import { createScoreRouter } from './routes/score.js'
 import { createABRouter } from './ab-engine/router.js'
 
-const app = express()
+const app: Application = express()
 app.use(express.json({ limit: '50mb' }))
 
 const engine = createScoringEngine()
