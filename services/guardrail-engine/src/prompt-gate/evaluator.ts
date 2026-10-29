@@ -44,7 +44,10 @@ export async function evaluatePrompt(
   // Baseline created only on first evaluation
   upsertBaseline(promptId, req.workspace_id, scores)
 
-  const { decision, reason } = makeDecision(scores, config.thresholds, regression?.detected === true)
+  // Uncalibrated fallback indices are review signals, not enforcement evidence.
+  const { decision, reason } = scores.scoring_provenance?.policy_eligible === false
+    ? { decision: 'WARN' as const, reason: 'Uncalibrated scoring engine: human review required; no automatic blocking' }
+    : makeDecision(scores, config.thresholds, regression?.detected === true)
 
   return {
     prompt_id: promptId,

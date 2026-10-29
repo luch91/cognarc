@@ -30,7 +30,9 @@ export function createScoreRouter(engine: ScoringEngine): Router {
       res.json(result)
     } catch (err) {
       const message = err instanceof Error ? err.message : 'Internal scoring error'
-      res.status(500).json({ error: message })
+      const unsupported = message.startsWith('CME_UNSUPPORTED_MODALITY')
+      const invalid = message.startsWith('CME_EMPTY_INPUT')
+      res.status(unsupported ? 422 : invalid ? 400 : 500).json({ error: message })
     }
   })
 

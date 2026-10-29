@@ -1,6 +1,25 @@
 // CognitiveScoreRequest / CognitiveScoreResponse — the contract that never changes.
 // Add fields; never remove or rename existing ones.
 
+export interface ScoringEvidence {
+  feature: string
+  count: number
+  examples: string[]
+}
+
+export interface ScoringProvenance {
+  engine: 'mathematical' | 'tribe' | 'mock'
+  evidence_type: 'linguistic_heuristics' | 'predicted_cortical_activations' | 'synthetic_test_data'
+  calibration_status: 'uncalibrated' | 'validated'
+  neural_evidence: boolean
+  policy_eligible: boolean
+  unestimated_dimensions?: string[]
+  feature_values?: Record<string, number>
+  evidence?: ScoringEvidence[]
+  fallback_used?: boolean
+  fallback_reason?: 'TRIBE_TIMEOUT' | 'TRIBE_UNAVAILABLE' | 'TRIBE_INVALID_OUTPUT'
+}
+
 export interface CognitiveScoreRequest {
   stimulus_type: 'text' | 'image' | 'audio' | 'video'
   content: string | Buffer
@@ -24,4 +43,5 @@ export interface CognitiveScoreResponse {
   explanation: string
   model_version: string
   latency_ms: number
+  scoring_provenance?: ScoringProvenance
 }

@@ -89,6 +89,13 @@ export class MockScoringEngine extends ScoringEngine {
       explanation: this.buildExplanation(cognitive_load, comprehension_confidence, manipulation_risk),
       model_version: this.engineName,
       latency_ms,
+      scoring_provenance: {
+        engine: 'mock',
+        evidence_type: 'synthetic_test_data',
+        calibration_status: 'uncalibrated',
+        neural_evidence: false,
+        policy_eligible: false,
+      },
     }
   }
 

@@ -69,7 +69,7 @@ export class ABComparisonEngine {
   ): Promise<CognitiveScoreResponse> {
     // If the engine is text-only (mock) and the input is an image/buffer,
     // fall back to the extracted text so tests work without Puppeteer.
-    const isTextEngine = this.scorer.engineName.startsWith('mock')
+    const isTextEngine = this.scorer.engineName.startsWith('mock') || this.scorer.engineName.startsWith('cme')
     const useText = isTextEngine && stimulus.type === 'image' && extractedText.length > 0
 
     const req: CognitiveScoreRequest = useText
