@@ -75,8 +75,8 @@ describe('dashboard canonical scoring contract', () => {
       ok:true,
       body:new ReadableStream({
         start(controller) {
-          controller.enqueue(new TextEncoder().encode('event: result\\ndata: ' +
-            JSON.stringify(score) + '\\n\\n'))
+          controller.enqueue(new TextEncoder().encode('event: result\ndata: ' +
+            JSON.stringify(score) + '\n\n'))
           controller.close()
         },
       }),
