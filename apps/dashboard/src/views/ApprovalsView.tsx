@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState, type KeyboardEvent } from 'react'
 import { Card } from '../components/Card.js'
 import { useAdminAuth } from '../context/AdminAuthContext.js'
 import {
@@ -15,6 +15,9 @@ export function ApprovalsView() {
   const [justification, setJustification] = useState('')
   const [saving, setSaving] = useState(false)
   const [message, setMessage] = useState('')
+  const justificationRef = useRef<HTMLTextAreaElement>(null)
+  const dialogRef = useRef<HTMLDivElement>(null)
+  const previousFocusRef = useRef<HTMLElement | null>(null)
 
   async function reload() {
     if (!workspace) return
@@ -31,6 +34,35 @@ export function ApprovalsView() {
   }
 
   useEffect(() => { void reload() }, [workspace?.id])
+
+  useEffect(() => {
+    if (!selected) return
+    previousFocusRef.current = document.activeElement as HTMLElement | null
+    justificationRef.current?.focus()
+    return () => { previousFocusRef.current?.focus() }
+  }, [selected?.id])
+
+  function dialogKeyboard(event: KeyboardEvent<HTMLDivElement>) {
+    if (event.key === 'Escape' && !saving) {
+      event.preventDefault()
+      setSelected(null)
+      return
+    }
+    if (event.key !== 'Tab') return
+    const focusable = Array.from(dialogRef.current?.querySelectorAll<HTMLElement>(
+      'button:not([disabled]),textarea:not([disabled])',
+    ) ?? [])
+    if (!focusable.length) return
+    const first = focusable[0]!
+    const last = focusable[focusable.length - 1]!
+    if (event.shiftKey && document.activeElement === first) {
+      event.preventDefault()
+      last.focus()
+    } else if (!event.shiftKey && document.activeElement === last) {
+      event.preventDefault()
+      first.focus()
+    }
+  }
 
   async function submitDecision() {
     if (!workspace || !selected || saving) return
@@ -99,9 +131,9 @@ export function ApprovalsView() {
               </div>
               {item.status === 'pending' && <div className="flex gap-2">
                 <button onClick={() => { setSelected(item); setDecision('rejected'); setJustification('') }}
-                  className="text-xs px-3 py-2 rounded-lg border border-red-300 text-red-700">Reject</button>
+                  className="min-h-11 text-xs px-3 py-2 rounded-lg border border-red-300 text-red-700">Reject</button>
                 <button onClick={() => { setSelected(item); setDecision('approved'); setJustification('') }}
-                  className="text-xs px-3 py-2 rounded-lg border border-teal-400 text-teal-800">Approve review</button>
+                  className="min-h-11 text-xs px-3 py-2 rounded-lg border border-teal-400 text-teal-800">Approve review</button>
               </div>}
             </div>
           </Card>
@@ -109,21 +141,22 @@ export function ApprovalsView() {
       </div>
       {selected && (
         <div className="fixed inset-0 z-50 bg-black/60 grid place-items-center p-4" role="presentation">
-          <div role="dialog" aria-modal="true" aria-labelledby="approval-title"
+          <div ref={dialogRef} role="dialog" aria-modal="true" aria-labelledby="approval-title"
+            aria-describedby="approval-description" onKeyDown={dialogKeyboard}
             className="bg-white rounded-xl shadow-xl w-full max-w-lg p-6 space-y-4">
             <h2 id="approval-title" className="text-lg font-semibold">{decision === 'approved' ? 'Record approval' : 'Record rejection'}</h2>
             <p className="text-sm text-gray-700">{selected.description}</p>
-            <p className="text-xs text-amber-800">This review does not execute the action.</p>
+            <p id="approval-description" className="text-xs text-amber-800">This review does not execute the action.</p>
             <label htmlFor="decision-justification" className="text-sm font-medium block">Required justification (12 to 2000 characters)</label>
-            <textarea id="decision-justification" rows={4} value={justification}
+            <textarea ref={justificationRef} id="decision-justification" rows={4} value={justification}
               onChange={e => setJustification(e.target.value)} maxLength={2000}
               className="w-full rounded-lg border border-gray-300 p-3 text-sm"/>
             <div className="flex flex-wrap justify-end gap-2">
               <button onClick={() => setSelected(null)} disabled={saving}
-                className="px-4 py-2 border rounded-lg text-sm">Cancel</button>
+                className="min-h-11 px-4 py-2 border rounded-lg text-sm">Cancel</button>
               <button disabled={saving || justification.trim().length < 12}
                 onClick={() => { void submitDecision() }}
-                className="px-4 py-2 bg-brand-500 text-white rounded-lg text-sm disabled:opacity-40">
+                className="min-h-11 px-4 py-2 bg-brand-500 text-white rounded-lg text-sm disabled:opacity-40">
                 {saving ? 'Saving...' : 'Confirm decision'}
               </button>
             </div>
