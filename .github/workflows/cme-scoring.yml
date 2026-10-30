@@ -1,0 +1,34 @@
+name: CME scoring checks
+on:
+  pull_request:
+    paths:
+      - 'services/cognitive-scoring/**'
+      - 'services/guardrail-engine/**'
+      - 'packages/cognarc-types/**'
+      - '.github/workflows/cme-scoring.yml'
+  push:
+    branches:
+      - 'feat/cme-mathematical-fallback'
+    paths:
+      - 'services/cognitive-scoring/**'
+      - 'services/guardrail-engine/**'
+      - 'packages/cognarc-types/**'
+      - '.github/workflows/cme-scoring.yml'
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 10.18.3
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm --filter @cognarc/types build
+      - run: pnpm --filter @cognarc/cognitive-scoring typecheck
+      - run: pnpm --filter @cognarc/guardrail-engine typecheck
+      - run: pnpm --filter @cognarc/cognitive-scoring exec jest --runInBand
+      - run: pnpm --filter @cognarc/guardrail-engine exec jest --runInBand

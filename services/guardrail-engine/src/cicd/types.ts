@@ -51,6 +51,7 @@ export interface EvaluationResult {
   overridden: boolean
   overrideJustification: string | null
   fileScores: FileScore[]
+  incompletePaths?: string[]
   summary: string
 }
 

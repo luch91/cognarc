@@ -294,7 +294,7 @@ describe('runGate', () => {
     expect(result.overrideJustification).toBe('emergency fix for production incident')
   })
 
-  it('skips files that do not match monitored paths', async () => {
+  it('fails closed when configured files cannot be evaluated', async () => {
     const mockFetch = jest.fn() as unknown as typeof global.fetch
     global.fetch = mockFetch
 
@@ -306,7 +306,8 @@ describe('runGate', () => {
     })
 
     expect(result.fileScores).toHaveLength(0)
-    expect(result.passed).toBe(true)
+    expect(result.passed).toBe(false)
+    expect(result.incompletePaths?.length).toBeGreaterThan(0)
   })
 
   it('skips files that do not exist on disk', async () => {
@@ -319,14 +320,15 @@ describe('runGate', () => {
     })
 
     expect(result.fileScores).toHaveLength(0)
+    expect(result.passed).toBe(false)
   })
 
   it('continues when scoring service fails', async () => {
     global.fetch = jest.fn().mockRejectedValue(new Error('service down')) as unknown as typeof global.fetch
 
-    await expect(
-      runGate({ changedFiles: [promptFile], scoringEndpoint: 'http://down', baselineDir: tmpDir })
-    ).resolves.not.toThrow()
+    const result = await runGate({ changedFiles: [promptFile], scoringEndpoint: 'http://down', baselineDir: tmpDir })
+    expect(result.passed).toBe(false)
+    expect(result.incompletePaths).toContain(promptFile + ' (scoring error)')
   })
 
   it('creates baseline on first run and computes delta on second run', async () => {

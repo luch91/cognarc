@@ -39,13 +39,15 @@ export async function runGate(options: GateOptions): Promise<EvaluationResult> {
 
   // Score each file
   const fileScores: FileScore[] = []
+  const incompletePaths: string[] = []
   for (const filePath of filesToEvaluate) {
-    if (!existsSync(filePath)) continue
+    if (!existsSync(filePath)) { incompletePaths.push(filePath + ' (file missing)'); continue }
 
     let content: string
     try {
       content = readFileSync(filePath, 'utf8')
     } catch {
+      incompletePaths.push(filePath + ' (read error)')
       continue
     }
 
@@ -54,6 +56,12 @@ export async function runGate(options: GateOptions): Promise<EvaluationResult> {
       scores = await scoreFile(filePath, content, scoringEndpoint)
     } catch (err) {
       console.error(`[cognarc] Failed to score ${filePath}: ${err instanceof Error ? err.message : String(err)}`)
+      incompletePaths.push(filePath + ' (scoring error)')
+      continue
+    }
+
+    if (scores.scoring_provenance?.policy_eligible === false) {
+      incompletePaths.push(filePath + ' (uncalibrated engine: human review required)')
       continue
     }
 
@@ -67,10 +75,11 @@ export async function runGate(options: GateOptions): Promise<EvaluationResult> {
   }
 
   const anyBreach = fileScores.some((fs) => fs.breaches.length > 0)
-  const passed = !anyBreach || overridden
-  const summary = formatScoreTable(fileScores)
+  const passed = incompletePaths.length === 0 && (!anyBreach || overridden)
+  const summary = formatScoreTable(fileScores) +
+    (incompletePaths.length ? '\n\nUnverified inputs: ' + incompletePaths.join('; ') : '')
 
-  return { passed, overridden, overrideJustification, fileScores, summary }
+  return { passed, overridden, overrideJustification, fileScores, summary, incompletePaths }
 }
 
 async function scoreFile(
@@ -100,6 +109,11 @@ export function buildPRComment(result: EvaluationResult, config: CognArcConfig):
   if (result.overridden) {
     lines.push(`> ⚠️ **Override active.** Justification: ${result.overrideJustification ?? '(none provided)'}`)
     lines.push('')
+  }
+
+  if ((result.incompletePaths?.length ?? 0) > 0) {
+    lines.push('❌ Mandatory evaluation incomplete or uncalibrated; deployment is not cleared.')
+    return lines.join('\n')
   }
 
   if (result.passed) {

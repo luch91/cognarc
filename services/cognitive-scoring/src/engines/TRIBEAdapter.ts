@@ -46,6 +46,14 @@ export class TRIBEAdapter extends ScoringEngine {
       workspace_id: request.workspace_id,
     })
 
+    // Reject the inference server's synthetic stub path.
+    if (!prediction.model_version || prediction.model_version.toLowerCase().includes('stub') ||
+        !Array.isArray(prediction.cortical_activations) ||
+        prediction.cortical_activations.length !== 20484 ||
+        !prediction.cortical_activations.every(Number.isFinite)) {
+      throw new CognArcError('TRIBE_INVALID_OUTPUT: inference response is synthetic or malformed', 'TRIBE_INVALID_OUTPUT')
+    }
+
     const activations = prediction.cortical_activations
 
     const rawLoad = extractROIActivation(activations, this.roiMap.cognitive_load)
@@ -71,6 +79,14 @@ export class TRIBEAdapter extends ScoringEngine {
       explanation: this.buildExplanation(cognitive_load, comprehension_confidence, manipulation_risk),
       model_version: prediction.model_version,
       latency_ms: Date.now() - start,
+      scoring_provenance: {
+        engine: 'tribe',
+        evidence_type: 'predicted_cortical_activations',
+        calibration_status: 'uncalibrated',
+        neural_evidence: false,
+        policy_eligible: false,
+        unestimated_dimensions: [],
+      },
     }
   }
 

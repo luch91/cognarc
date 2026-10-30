@@ -3,7 +3,8 @@ import { z } from 'zod'
 const EnvSchema = z.object({
   PORT: z.coerce.number().default(3001),
   NODE_ENV: z.enum(['development', 'production', 'test']).default('development'),
-  COGNARC_SCORING_ENGINE: z.enum(['mock', 'tribe-local', 'tribe-gcp']).default('mock'),
+  COGNARC_SCORING_ENGINE: z.enum(['math', 'mock', 'tribe-local', 'tribe-gcp']).default('math'),
+  COGNARC_FALLBACK_ENABLED: z.enum(['true', 'false']).default('true'),
   GCP_TRIBE_ENDPOINT: z.string().url().optional(),
   TRIBE_LOCAL_ENDPOINT: z.string().url().default('http://localhost:8080'),
 })
