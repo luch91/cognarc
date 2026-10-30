@@ -1,0 +1,38 @@
+name: CognArc release performance baseline
+on:
+  push:
+    branches:
+      - 'feat/gate4-cloudflare-responsive-staging'
+      - 'master'
+    paths:
+      - 'services/cognitive-scoring/**'
+      - 'packages/cognarc-types/**'
+      - '.github/workflows/cognarc-performance.yml'
+  workflow_dispatch:
+
+jobs:
+  mathematical-cme-benchmark:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 12
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 10.18.3
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm --filter @cognarc/types build
+      - name: Benchmark mathematical CME and local HTTP scoring
+        run: pnpm --filter @cognarc/cognitive-scoring exec tsx scripts/performance-benchmark.ts
+      - name: Archive reproducible performance data
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: cognarc-performance-baseline
+          path: services/cognitive-scoring/reports/performance.json
+          if-no-files-found: warn
