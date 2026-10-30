@@ -78,7 +78,7 @@ export async function scoreText(text: string, _workspaceId?: string): Promise<Li
 export async function scoreTextRemote(text: string, mode: ScoringMode = 'accurate'): Promise<LiveScoreResult> {
   const auth = await getWorkspaceRequestAuth()
   const res = await fetch('/api/score', {
-    method: 'POST', headers: { 'Content-Type': 'application/json' },
+    method: 'POST', headers: { 'Content-Type': 'application/json', Authorization: auth.authorization },
     body: postBody(text, mode, auth.workspaceId),
     signal: AbortSignal.timeout(110_000),
   })
@@ -94,8 +94,8 @@ export async function scoreTextStream(
 ): Promise<LiveScoreResult> {
   const auth = await getWorkspaceRequestAuth()
   const res = await fetch('/api/score-stream', {
-    method: 'POST', headers: { 'Content-Type': 'application/json' },
-    body: postBody(text, mode, 'ws-1'),
+    method: 'POST', headers: { 'Content-Type': 'application/json', Authorization: auth.authorization },
+    body: postBody(text, mode, auth.workspaceId),
     signal: AbortSignal.timeout(110_000),
   })
   if (!res.ok) throw new Error('Scoring stream unavailable (' + res.status + '): ' + (await res.text()).slice(0, 250))

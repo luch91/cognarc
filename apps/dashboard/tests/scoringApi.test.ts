@@ -5,7 +5,7 @@ jest.mock('../src/api/workspaceSession.js', () => ({
   }),
 }))
 
-import { parseScoreResult, scoreTextStream } from '../src/api/scoringApi.js'
+import { parseScoreResult, scoreTextStream, scoreTextRemote } from '../src/api/scoringApi.js'
 
 const score = {
   cognitive_load: 38,
@@ -70,4 +70,37 @@ describe('dashboard canonical scoring contract', () => {
       globalThis.fetch = previous
     }
   })
+  test('streaming scoring sends verified workspace ID and bearer token', async () => {
+    const mockedFetch = jest.fn().mockResolvedValue({
+      ok:true,
+      body:new ReadableStream({
+        start(controller) {
+          controller.enqueue(new TextEncoder().encode('event: result\ndata: ' +
+            JSON.stringify(score) + '\n\n'))
+          controller.close()
+        },
+      }),
+    })
+    const previous=globalThis.fetch
+    globalThis.fetch=mockedFetch as typeof fetch
+    try {
+      await scoreTextStream('Verify this exact workspace', jest.fn())
+      const [url, options] = mockedFetch.mock.calls[0]!
+      expect(url).toBe('/api/score-stream')
+      expect(options.headers.Authorization).toBe('Bearer unit-test-session')
+      expect(JSON.parse(options.body).workspace_id).toBe('00000000-0000-4000-8000-000000000001')
+    } finally { globalThis.fetch=previous }
+  })
+  test('synchronous scoring always carries token and verified workspace', async () => {
+    const mockedFetch = jest.fn().mockResolvedValue({ ok:true, json:async()=>score })
+    const previous=globalThis.fetch
+    globalThis.fetch=mockedFetch as typeof fetch
+    try {
+      await scoreTextRemote('One verified request')
+      const [,options] = mockedFetch.mock.calls[0]!
+      expect(options.headers.Authorization).toBe('Bearer unit-test-session')
+      expect(JSON.parse(options.body).workspace_id).not.toBe('ws-1')
+    } finally { globalThis.fetch=previous }
+  })
+
 })

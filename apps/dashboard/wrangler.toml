@@ -1,0 +1,13 @@
+# Cloudflare Pages preview configuration for apps/dashboard as the Pages root.
+# Secrets must be assigned in Pages project settings. Never commit values.
+name = "cognarc-dashboard-preview"
+compatibility_date = "2026-10-30"
+pages_build_output_dir = "./dist"
+
+[[ratelimits]]
+name = "COGNARC_RATE_LIMITER"
+namespace_id = "2211"
+
+[ratelimits.simple]
+limit = 12
+period = 60

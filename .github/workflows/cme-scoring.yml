@@ -8,6 +8,8 @@ on:
       - 'infrastructure/supabase/gate3-*.sql'
       - 'tests/db/**'
       - 'docs/gate3-auth-workspaces-approvals.md'
+      - 'docs/gate4-cloudflare-staging.md'
+      - 'e2e/gate4-accessibility.spec.ts'
       - 'services/scoring-proxy/**'
       - 'api/**'
       - 'docs/gate1-cme-cloudflare-transport.md'
@@ -19,6 +21,7 @@ on:
       - 'feat/gate1-admin-cme-cloudflare-ready'
       - 'feat/gate2-admin-operational-integrity'
       - 'feat/gate3-auth-workspaces-audit'
+      - 'feat/gate4-cloudflare-responsive-staging'
     paths:
       - 'services/cognitive-scoring/**'
       - 'services/guardrail-engine/**'
@@ -30,7 +33,7 @@ on:
       - '.github/workflows/cme-scoring.yml'
 jobs:
   verify:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     services:
       postgres:
         image: postgres:16
@@ -59,10 +62,18 @@ jobs:
       - run: pnpm --filter @cognarc/guardrail-engine typecheck
       - run: pnpm --filter @cognarc/dashboard typecheck
       - run: pnpm --filter @cognarc/dashboard build
+      - run: pnpm --filter @cognarc/dashboard exec tsc -p tsconfig.cloudflare.json --noEmit
       - run: pnpm --filter @cognarc/scoring-proxy exec tsc --noEmit
       - run: pnpm --filter @cognarc/dashboard exec jest --runInBand
       - run: pnpm --filter @cognarc/cognitive-scoring exec jest --runInBand
       - run: pnpm --filter @cognarc/guardrail-engine exec jest --runInBand
+      - name: Install Chromium for scoped Gate 4 browser tests
+        run: pnpm exec playwright install --with-deps chromium
+      - name: Gate 4 keyboard and mobile responsive browser smoke
+        env:
+          VITE_SUPABASE_URL: https://test-auth.example
+          VITE_SUPABASE_ANON_KEY: browser-test-public-key
+        run: pnpm exec playwright test e2e/gate4-accessibility.spec.ts
       - name: Verify Gate 3 PostgreSQL RLS, RPCs and immutable audit
         env:
           PGHOST: localhost

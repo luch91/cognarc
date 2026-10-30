@@ -1,0 +1,9 @@
+# Copy to .dev.vars for LOCAL-only Cloudflare Pages Functions testing.
+# Never commit .dev.vars or actual secrets.
+SUPABASE_URL=https://your-project.supabase.co
+SUPABASE_ANON_KEY=
+COGNARC_SCORING_URL=https://your-canonical-scoring-service.example
+COGNARC_SCORING_SERVICE_SECRET=
+COGNARC_REWRITE_URL=
+COGNARC_REWRITE_SERVICE_SECRET=
+COGNARC_URL_ALLOWED_HOSTS=

@@ -3,6 +3,7 @@ import { Card } from '../components/Card.js'
 import { Spinner } from '../components/Spinner.js'
 import { useAppContext } from '../context/AppContext.js'
 import { IntegrationRegistry } from '../components/IntegrationRegistry.js'
+import { getWorkspaceRequestAuth } from '../api/workspaceSession.js'
 
 type Probe = { status: 'unchecked' | 'checking' | 'healthy' | 'unavailable'; engine?: string; error?: string }
 
@@ -16,8 +17,10 @@ export function SettingsView() {
   async function checkScoringService() {
     setProbe({ status: 'checking' })
     try {
+      const auth = await getWorkspaceRequestAuth()
       const response = await fetch('/api/health', {
         method: 'GET', cache: 'no-store', signal: AbortSignal.timeout(10_000),
+        headers: { Authorization: auth.authorization, 'X-Workspace-Id': auth.workspaceId },
       })
       const result: unknown = await response.json()
       if (!response.ok || !result || typeof result !== 'object' ||
